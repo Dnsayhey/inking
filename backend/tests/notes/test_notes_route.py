@@ -26,6 +26,7 @@ class FakeNoteService:
             "updated_at": now,
             "is_archived": False,
             "archived_at": None,
+            "tags": [],
         }
         self.note_archived = {
             "id": 2,
@@ -35,6 +36,7 @@ class FakeNoteService:
             "updated_at": now,
             "is_archived": True,
             "archived_at": now,
+            "tags": [],
         }
         self.list_calls: list[dict] = []
 
@@ -56,6 +58,7 @@ class FakeNoteService:
         self,
         user_id: int,
         archived: bool = False,
+        tag_ids: list[int] | None = None,
         search: str | None = None,
         order_by: str = "updated_at",
         direction: str = "desc",
@@ -66,6 +69,7 @@ class FakeNoteService:
             {
                 "user_id": user_id,
                 "archived": archived,
+                "tag_ids": tag_ids,
                 "search": search,
                 "order_by": order_by,
                 "direction": direction,
@@ -113,6 +117,7 @@ def test_notes_list_supports_archived_filter_and_query_params():
         "/notes",
         params={
             "archived": "true",
+            "tag_ids": "1,2",
             "search": "archived",
             "order_by": "title",
             "direction": "asc",
@@ -126,6 +131,7 @@ def test_notes_list_supports_archived_filter_and_query_params():
     assert fake_service.list_calls[0] == {
         "user_id": 99,
         "archived": False,
+        "tag_ids": None,
         "search": None,
         "order_by": "updated_at",
         "direction": "desc",
@@ -135,6 +141,7 @@ def test_notes_list_supports_archived_filter_and_query_params():
     assert fake_service.list_calls[1] == {
         "user_id": 99,
         "archived": True,
+        "tag_ids": [1, 2],
         "search": "archived",
         "order_by": "title",
         "direction": "asc",
@@ -175,6 +182,36 @@ def test_restore_note_route_returns_note_or_404():
     assert r.json()["archived_at"] is None
 
     r = client.post("/notes/999/restore")
+    assert r.status_code == 404
+
+    app.dependency_overrides.clear()
+
+
+def test_set_note_tags_route_success_and_validation():
+    fake_service = FakeNoteService()
+
+    async def _set_note_tags(note_id: int, user_id: int, tag_ids: list[int]):
+        if note_id == 999:
+            return None
+        if 999 in tag_ids:
+            raise ValueError("标签不存在")
+        updated = fake_service.note_active.copy()
+        updated["tags"] = [{"id": tag_id, "name": f"tag-{tag_id}", "color": None} for tag_id in tag_ids]
+        return updated
+
+    fake_service.set_note_tags = _set_note_tags
+    app.dependency_overrides[get_note_service] = lambda: fake_service
+    app.dependency_overrides[get_current_user] = lambda: FakeUser(user_id=99)
+    client = TestClient(app)
+
+    r = client.put("/notes/1/tags", json={"tag_ids": [1, 2]})
+    assert r.status_code == 200
+    assert [item["id"] for item in r.json()["tags"]] == [1, 2]
+
+    r = client.put("/notes/1/tags", json={"tag_ids": [999]})
+    assert r.status_code == 400
+
+    r = client.put("/notes/999/tags", json={"tag_ids": [1]})
     assert r.status_code == 404
 
     app.dependency_overrides.clear()

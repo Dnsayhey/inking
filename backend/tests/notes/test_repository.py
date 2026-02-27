@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from src.auth.model import User
 from src.core.base_model import Base
 from src.notes.repository import NoteRepository
+from src.tags.model import Tag
 
 
 @pytest_asyncio.fixture
@@ -26,6 +27,14 @@ async def create_user(session: AsyncSession, username: str) -> User:
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def create_tag(session: AsyncSession, user_id: int, name: str) -> Tag:
+    tag = Tag(user_id=user_id, name=name)
+    session.add(tag)
+    await session.commit()
+    await session.refresh(tag)
+    return tag
 
 
 @pytest.mark.asyncio
@@ -110,3 +119,36 @@ async def test_restore_unarchives_note_and_makes_it_visible(session: AsyncSessio
     visible = await repo.get_by_id(note.id, user.id)
     assert visible is not None
     assert visible.title == "restore-me"
+
+
+@pytest.mark.asyncio
+async def test_set_tags_replaces_existing_tags(session: AsyncSession):
+    repo = NoteRepository(session)
+    user = await create_user(session, "alice")
+    note = await repo.create({"title": "with-tags", "content": "content"}, user.id)
+    tag_a = await create_tag(session, user.id, "a")
+    tag_b = await create_tag(session, user.id, "b")
+
+    updated = await repo.set_tags(note.id, user.id, [tag_a.id, tag_b.id])
+    assert updated is not None
+    assert {tag.name for tag in updated.tags} == {"a", "b"}
+
+    updated = await repo.set_tags(note.id, user.id, [tag_b.id])
+    assert updated is not None
+    assert [tag.name for tag in updated.tags] == ["b"]
+
+
+@pytest.mark.asyncio
+async def test_get_all_can_filter_by_tag_ids_with_or_semantics(session: AsyncSession):
+    repo = NoteRepository(session)
+    user = await create_user(session, "alice")
+    note_one = await repo.create({"title": "n1", "content": "content1"}, user.id)
+    note_two = await repo.create({"title": "n2", "content": "content2"}, user.id)
+    tag_x = await create_tag(session, user.id, "x")
+    tag_y = await create_tag(session, user.id, "y")
+
+    await repo.set_tags(note_one.id, user.id, [tag_x.id])
+    await repo.set_tags(note_two.id, user.id, [tag_y.id])
+
+    notes = await repo.get_all(user_id=user.id, tag_ids=[tag_x.id, tag_y.id])
+    assert {note.id for note in notes} == {note_one.id, note_two.id}

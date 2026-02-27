@@ -81,10 +81,15 @@ uv run python -m alembic downgrade -1
 - `POST /auth/refresh`：使用 refresh token 刷新令牌对
 - `POST /auth/logout`：注销当前 refresh 会话
 - `GET /auth/me`：获取当前登录用户信息
+- `POST /tags`：创建标签
+- `GET /tags`：获取标签列表
+- `PATCH /tags/{tag_id}`：更新标签
+- `DELETE /tags/{tag_id}`：删除标签
 - `POST /notes`：创建笔记
-- `GET /notes`：查询笔记列表（支持分页、排序、搜索、`archived=true/false`）
+- `GET /notes`：查询笔记列表（支持分页、排序、搜索、`archived=true/false`、`tag_ids=1,2`）
 - `GET /notes/{note_id}`：查询单个笔记
 - `PUT /notes/{note_id}`：更新笔记
+- `PUT /notes/{note_id}/tags`：覆盖设置笔记标签
 - `DELETE /notes/{note_id}`：归档笔记（软删除）
 - `POST /notes/{note_id}/restore`：恢复已归档笔记
 

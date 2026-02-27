@@ -17,6 +17,7 @@ class NoteService:
         self,
         user_id: int,
         archived: bool = False,
+        tag_ids: list[int] | None = None,
         search: str | None = None,
         order_by: str = "updated_at",
         direction: str = "desc",
@@ -26,6 +27,7 @@ class NoteService:
         return await self.repository.get_all(
             user_id=user_id,
             archived=archived,
+            tag_ids=tag_ids,
             search=search,
             order_by=order_by,
             direction=direction,
@@ -44,3 +46,6 @@ class NoteService:
 
     async def restore_note(self, note_id: int, user_id: int) -> Note | None:
         return await self.repository.restore(note_id, user_id)
+
+    async def set_note_tags(self, note_id: int, user_id: int, tag_ids: list[int]) -> Note | None:
+        return await self.repository.set_tags(note_id, user_id, tag_ids)

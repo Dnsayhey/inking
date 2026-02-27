@@ -4,8 +4,10 @@ from datetime import datetime, timezone
 from sqlalchemy import asc, desc, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.notes.model import Note
+from src.tags.model import NoteTag, Tag
 
 
 class NoteRepository:
@@ -24,7 +26,11 @@ class NoteRepository:
         return note
 
     async def get_by_id(self, note_id: int, user_id: int) -> Note | None:
-        query = select(Note).where(Note.id == note_id, Note.user_id == user_id)
+        query = (
+            select(Note)
+            .options(selectinload(Note.tags))
+            .where(Note.id == note_id, Note.user_id == user_id)
+        )
         return await self.session.scalar(query)
 
     async def get_all(
@@ -32,17 +38,28 @@ class NoteRepository:
         *,
         user_id: int,
         archived: bool = False,
+        tag_ids: list[int] | None = None,
         search: str | None = None,
         order_by: str = "updated_at",
         direction: str = "desc",
         limit: int = 10,
         offset: int = 0,
     ) -> list[Note]:
-        query = select(Note).where(Note.user_id == user_id, Note.is_archived.is_(archived))
+        query = (
+            select(Note)
+            .options(selectinload(Note.tags))
+            .where(Note.user_id == user_id, Note.is_archived.is_(archived))
+        )
 
         if search:
             pattern = f"%{search}%"
             query = query.where(or_(Note.title.ilike(pattern), Note.content.ilike(pattern)))
+
+        if tag_ids:
+            tag_ids = list(set(tag_ids))
+            query = query.where(
+                Note.id.in_(select(NoteTag.note_id).where(NoteTag.tag_id.in_(tag_ids)))
+            )
 
         allowed_sort = {"id", "title", "created_at", "updated_at"}
         if order_by not in allowed_sort:
@@ -90,3 +107,29 @@ class NoteRepository:
         await self.session.commit()
         await self.session.refresh(note)
         return note
+
+    async def set_tags(self, note_id: int, user_id: int, tag_ids: list[int]) -> Note | None:
+        note = await self.get_by_id(note_id, user_id)
+        if note is None:
+            return None
+
+        normalized_tag_ids = list(dict.fromkeys(tag_ids))
+        if not normalized_tag_ids:
+            note.tags = []
+            await self.session.commit()
+            return await self.get_by_id(note_id, user_id)
+
+        tags = list(
+            await self.session.scalars(
+                select(Tag).where(
+                    Tag.user_id == user_id,
+                    Tag.id.in_(normalized_tag_ids),
+                )
+            )
+        )
+        if len(tags) != len(normalized_tag_ids):
+            raise ValueError("标签不存在")
+
+        note.tags = tags
+        await self.session.commit()
+        return await self.get_by_id(note_id, user_id)

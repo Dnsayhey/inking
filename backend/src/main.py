@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.auth.route import router as auth_router
 from src.core.config import settings
 from src.notes.route import router as notes_router
+from src.tags.route import router as tags_router
 
 
 app = FastAPI()
@@ -17,6 +18,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(notes_router)
+app.include_router(tags_router)
 
 
 @app.get("/")

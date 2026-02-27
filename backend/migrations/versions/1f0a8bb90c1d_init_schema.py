@@ -52,6 +52,32 @@ def upgrade() -> None:
     op.create_index(op.f("notes_user_id_idx"), "notes", ["user_id"], unique=False)
 
     op.create_table(
+        "tags",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(length=64), nullable=False),
+        sa.Column("color", sa.String(length=32), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name=op.f("tags_user_id_fkey"), ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id", name=op.f("tags_pkey")),
+        sa.UniqueConstraint("user_id", "name", name=op.f("tags_user_id_name_key")),
+    )
+    op.create_index(op.f("tags_created_at_idx"), "tags", ["created_at"], unique=False)
+    op.create_index(op.f("tags_user_id_idx"), "tags", ["user_id"], unique=False)
+
+    op.create_table(
+        "note_tags",
+        sa.Column("note_id", sa.Integer(), nullable=False),
+        sa.Column("tag_id", sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(["note_id"], ["notes.id"], name=op.f("note_tags_note_id_fkey"), ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["tag_id"], ["tags.id"], name=op.f("note_tags_tag_id_fkey"), ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("note_id", "tag_id", name=op.f("note_tags_pkey")),
+    )
+    op.create_index(op.f("note_tags_note_id_idx"), "note_tags", ["note_id"], unique=False)
+    op.create_index(op.f("note_tags_tag_id_idx"), "note_tags", ["tag_id"], unique=False)
+
+    op.create_table(
         "refresh_sessions",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
@@ -76,6 +102,14 @@ def downgrade() -> None:
     op.drop_index(op.f("refresh_sessions_user_id_idx"), table_name="refresh_sessions")
     op.drop_index(op.f("refresh_sessions_token_jti_idx"), table_name="refresh_sessions")
     op.drop_table("refresh_sessions")
+
+    op.drop_index(op.f("note_tags_tag_id_idx"), table_name="note_tags")
+    op.drop_index(op.f("note_tags_note_id_idx"), table_name="note_tags")
+    op.drop_table("note_tags")
+
+    op.drop_index(op.f("tags_user_id_idx"), table_name="tags")
+    op.drop_index(op.f("tags_created_at_idx"), table_name="tags")
+    op.drop_table("tags")
 
     op.drop_index(op.f("notes_user_id_idx"), table_name="notes")
     op.drop_index(op.f("notes_is_archived_idx"), table_name="notes")

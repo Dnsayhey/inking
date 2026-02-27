@@ -9,6 +9,7 @@ from src.core.base_model import Base
 from src.core.config import settings
 import src.auth.model  # noqa: F401
 import src.notes.model  # noqa: F401
+import src.tags.model  # noqa: F401
 
 config = context.config
 
