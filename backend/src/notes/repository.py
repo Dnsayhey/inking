@@ -1,7 +1,7 @@
 from typing import Any, Mapping
 from datetime import datetime, timezone
 
-from sqlalchemy import asc, desc, or_, select
+from sqlalchemy import asc, desc, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -53,7 +53,7 @@ class NoteRepository:
 
         if search:
             pattern = f"%{search}%"
-            query = query.where(or_(Note.title.ilike(pattern), Note.content.ilike(pattern)))
+            query = query.where(Note.content.ilike(pattern))
 
         if tag_ids:
             tag_ids = list(set(tag_ids))
@@ -61,7 +61,7 @@ class NoteRepository:
                 Note.id.in_(select(NoteTag.note_id).where(NoteTag.tag_id.in_(tag_ids)))
             )
 
-        allowed_sort = {"id", "title", "created_at", "updated_at"}
+        allowed_sort = {"id", "created_at", "updated_at"}
         if order_by not in allowed_sort:
             order_by = "updated_at"
         order_column = getattr(Note, order_by, Note.updated_at)

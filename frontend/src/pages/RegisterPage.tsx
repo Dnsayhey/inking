@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { login, register } from "../api/auth";
 import { setTokens } from "../auth/token";
+import { FieldError, FormError, PrimaryButton, TextInput } from "../components/ui";
 
 const registerSchema = z
   .object({
@@ -46,51 +47,52 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <p className="auth-kicker">INKING</p>
-        <h1 className="auth-title">创建新账号</h1>
-        <p className="auth-subtitle">注册后会自动登录并进入你的笔记工作台。</p>
+    <div className="flex min-h-screen items-center justify-center p-5">
+      <div className="w-full max-w-md rounded-2xl border border-slate-300 bg-white/90 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur">
+        <p className="m-0 text-xs font-bold tracking-[0.09em] text-sky-700">INKING · 墨记</p>
+        <h1 className="mt-1.5 text-[1.75rem] font-bold">创建新账号</h1>
 
-        <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
-          <label className="field-label" htmlFor="username">
+        <form className="grid gap-2" onSubmit={handleSubmit(onSubmit)}>
+          <label className="text-sm font-semibold" htmlFor="username">
             用户名
           </label>
-          <input id="username" className="field-input" {...registerField("username")} placeholder="例如：yanlei" />
-          {errors.username ? <p className="field-error">{errors.username.message}</p> : null}
+          <TextInput
+            id="username"
+            {...registerField("username")}
+            placeholder="例如：yanlei"
+          />
+          {errors.username ? <FieldError>{errors.username.message}</FieldError> : null}
 
-          <label className="field-label" htmlFor="password">
+          <label className="text-sm font-semibold" htmlFor="password">
             密码
           </label>
-          <input
+          <TextInput
             id="password"
-            className="field-input"
             type="password"
             {...registerField("password")}
             placeholder="至少 8 个字符"
           />
-          {errors.password ? <p className="field-error">{errors.password.message}</p> : null}
+          {errors.password ? <FieldError>{errors.password.message}</FieldError> : null}
 
-          <label className="field-label" htmlFor="confirmPassword">
+          <label className="text-sm font-semibold" htmlFor="confirmPassword">
             确认密码
           </label>
-          <input
+          <TextInput
             id="confirmPassword"
-            className="field-input"
             type="password"
             {...registerField("confirmPassword")}
             placeholder="再次输入密码"
           />
-          {errors.confirmPassword ? <p className="field-error">{errors.confirmPassword.message}</p> : null}
+          {errors.confirmPassword ? <FieldError>{errors.confirmPassword.message}</FieldError> : null}
 
-          {registerMutation.isError ? <p className="form-error">注册失败，用户名可能已存在</p> : null}
+          {registerMutation.isError ? <FormError>注册失败，用户名可能已存在</FormError> : null}
 
-          <button className="btn-primary" disabled={registerMutation.isPending} type="submit">
+          <PrimaryButton disabled={registerMutation.isPending} type="submit">
             {registerMutation.isPending ? "注册中..." : "注册并登录"}
-          </button>
+          </PrimaryButton>
         </form>
 
-        <p className="auth-footnote">
+        <p className="mt-4 text-[0.92rem] text-slate-600">
           已有账号？<Link to="/login">去登录</Link>
         </p>
       </div>

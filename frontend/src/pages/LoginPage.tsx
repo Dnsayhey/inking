@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { login } from "../api/auth";
 import { setTokens } from "../auth/token";
+import { FieldError, FormError, PrimaryButton, TextInput } from "../components/ui";
 
 const loginSchema = z.object({
   username: z.string().min(3, "用户名至少 3 个字符").max(64, "用户名最多 64 个字符"),
@@ -37,39 +38,41 @@ export function LoginPage() {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <p className="auth-kicker">INKING</p>
-        <h1 className="auth-title">欢迎回来</h1>
-        <p className="auth-subtitle">登录后可管理笔记清单，并在会话过期时自动刷新凭证。</p>
+    <div className="flex min-h-screen items-center justify-center p-5">
+      <div className="w-full max-w-md rounded-2xl border border-slate-300 bg-white/90 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur">
+        <p className="m-0 text-xs font-bold tracking-[0.09em] text-sky-700">INKING · 墨记</p>
+        <h1 className="mt-1.5 text-[1.75rem] font-bold">欢迎回来</h1>
 
-        <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
-          <label className="field-label" htmlFor="username">
+        <form className="grid gap-2" onSubmit={handleSubmit(onSubmit)}>
+          <label className="text-sm font-semibold" htmlFor="username">
             用户名
           </label>
-          <input id="username" className="field-input" {...register("username")} placeholder="请输入用户名" />
-          {errors.username ? <p className="field-error">{errors.username.message}</p> : null}
+          <TextInput
+            id="username"
+            {...register("username")}
+            placeholder="请输入用户名"
+          />
+          {errors.username ? <FieldError>{errors.username.message}</FieldError> : null}
 
-          <label className="field-label" htmlFor="password">
+          <label className="text-sm font-semibold" htmlFor="password">
             密码
           </label>
-          <input
+          <TextInput
             id="password"
-            className="field-input"
             type="password"
             {...register("password")}
             placeholder="请输入密码"
           />
-          {errors.password ? <p className="field-error">{errors.password.message}</p> : null}
+          {errors.password ? <FieldError>{errors.password.message}</FieldError> : null}
 
-          {loginMutation.isError ? <p className="form-error">登录失败，请检查用户名和密码</p> : null}
+          {loginMutation.isError ? <FormError>登录失败，请检查用户名和密码</FormError> : null}
 
-          <button className="btn-primary" disabled={loginMutation.isPending} type="submit">
+          <PrimaryButton disabled={loginMutation.isPending} type="submit">
             {loginMutation.isPending ? "登录中..." : "登录"}
-          </button>
+          </PrimaryButton>
         </form>
 
-        <p className="auth-footnote">
+        <p className="mt-4 text-[0.92rem] text-slate-600">
           还没有账号？<Link to="/register">去注册</Link>
         </p>
       </div>

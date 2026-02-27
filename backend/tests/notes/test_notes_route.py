@@ -20,7 +20,6 @@ class FakeNoteService:
         now = datetime.now(timezone.utc)
         self.note_active = {
             "id": 1,
-            "title": "active-note",
             "content": "active-content",
             "created_at": now,
             "updated_at": now,
@@ -30,7 +29,6 @@ class FakeNoteService:
         }
         self.note_archived = {
             "id": 2,
-            "title": "archived-note",
             "content": "archived-content",
             "created_at": now,
             "updated_at": now,
@@ -43,7 +41,6 @@ class FakeNoteService:
     async def create_note(self, note_data, user_id: int):
         return {
             **self.note_active,
-            "title": note_data.title,
             "content": note_data.content,
         }
 
@@ -83,8 +80,6 @@ class FakeNoteService:
         if note_id != self.note_active["id"]:
             return None
         updated = self.note_active.copy()
-        if note_data.title is not None:
-            updated["title"] = note_data.title
         if note_data.content is not None:
             updated["content"] = note_data.content
         self.note_active = updated
@@ -112,6 +107,8 @@ def test_notes_list_supports_archived_filter_and_query_params():
     r = client.get("/notes")
     assert r.status_code == 200
     assert r.json()[0]["is_archived"] is False
+    assert r.json()[0]["created_at"].endswith("Z")
+    assert r.json()[0]["updated_at"].endswith("Z")
 
     r = client.get(
         "/notes",
@@ -119,7 +116,7 @@ def test_notes_list_supports_archived_filter_and_query_params():
             "archived": "true",
             "tag_ids": "1,2",
             "search": "archived",
-            "order_by": "title",
+            "order_by": "updated_at",
             "direction": "asc",
             "limit": 5,
             "offset": 10,
@@ -143,7 +140,7 @@ def test_notes_list_supports_archived_filter_and_query_params():
         "archived": True,
         "tag_ids": [1, 2],
         "search": "archived",
-        "order_by": "title",
+        "order_by": "updated_at",
         "direction": "asc",
         "limit": 5,
         "offset": 10,
@@ -162,6 +159,9 @@ def test_get_note_allows_archived_notes_and_404_for_missing():
     assert r.status_code == 200
     assert r.json()["id"] == 2
     assert r.json()["is_archived"] is True
+    assert r.json()["created_at"].endswith("Z")
+    assert r.json()["updated_at"].endswith("Z")
+    assert r.json()["archived_at"].endswith("Z")
 
     r = client.get("/notes/999")
     assert r.status_code == 404

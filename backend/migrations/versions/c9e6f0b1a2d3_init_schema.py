@@ -1,8 +1,8 @@
 """init schema
 
-Revision ID: 1f0a8bb90c1d
+Revision ID: c9e6f0b1a2d3
 Revises:
-Create Date: 2026-02-26 17:45:00.000000
+Create Date: 2026-02-28 00:20:00.000000
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "1f0a8bb90c1d"
+revision: str = "c9e6f0b1a2d3"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -38,7 +38,6 @@ def upgrade() -> None:
         "notes",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("is_archived", sa.Boolean(), nullable=False),
         sa.Column("archived_at", sa.DateTime(timezone=True), nullable=True),

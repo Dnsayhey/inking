@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 
 class TagRead(BaseModel):
@@ -12,7 +12,6 @@ class TagRead(BaseModel):
 
 
 class NoteBase(BaseModel):
-    title: Annotated[str, Field(..., min_length=1, max_length=255, description="笔记标题")]
     content: Annotated[str, Field(..., min_length=1, description="笔记内容")]
 
 
@@ -21,7 +20,6 @@ class NoteCreate(NoteBase):
 
 
 class NoteUpdate(BaseModel):
-    title: Annotated[str | None, Field(None, min_length=1, max_length=255, description="笔记标题")]
     content: Annotated[str | None, Field(None, min_length=1, description="笔记内容")]
 
 
@@ -36,6 +34,16 @@ class NoteRead(NoteBase):
     model_config = {
         "from_attributes": True
     }
+
+    @field_serializer("created_at", "updated_at", "archived_at", when_used="json")
+    def serialize_datetime_as_utc(self, value: datetime | None) -> str | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            normalized = value.replace(tzinfo=timezone.utc)
+        else:
+            normalized = value.astimezone(timezone.utc)
+        return normalized.isoformat().replace("+00:00", "Z")
 
 
 class NoteTagUpdate(BaseModel):

@@ -1,24 +1,47 @@
 import { api } from "./client";
 
+export type NoteTag = {
+  id: number;
+  name: string;
+  color: string | null;
+};
+
 export type Note = {
   id: number;
-  title: string;
   content: string;
   created_at: string;
+  updated_at: string;
+  is_archived: boolean;
+  archived_at: string | null;
+  tags: NoteTag[];
 };
 
 export type CreateNotePayload = {
-  title: string;
   content: string;
 };
 
 export type UpdateNotePayload = {
-  title?: string;
   content?: string;
 };
 
-export async function listNotes() {
-  const response = await api.get<Note[]>("/notes");
+export type ListNotesParams = {
+  archived?: boolean;
+  tagIds?: number[];
+  search?: string;
+};
+
+export async function listNotes(params: ListNotesParams = {}) {
+  const query: Record<string, string> = {};
+  if (params.archived !== undefined) {
+    query.archived = String(params.archived);
+  }
+  if (params.tagIds && params.tagIds.length > 0) {
+    query.tag_ids = params.tagIds.join(",");
+  }
+  if (params.search && params.search.trim()) {
+    query.search = params.search.trim();
+  }
+  const response = await api.get<Note[]>("/notes", { params: query });
   return response.data;
 }
 
@@ -34,4 +57,9 @@ export async function updateNote(noteId: number, payload: UpdateNotePayload) {
 
 export async function deleteNote(noteId: number) {
   await api.delete(`/notes/${noteId}`);
+}
+
+export async function setNoteTags(noteId: number, tagIds: number[]) {
+  const response = await api.put<Note>(`/notes/${noteId}/tags`, { tag_ids: tagIds });
+  return response.data;
 }
