@@ -1,4 +1,5 @@
 from typing import Any, Mapping
+from datetime import datetime, timezone
 
 from sqlalchemy import asc, desc, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -30,23 +31,24 @@ class NoteRepository:
         self,
         *,
         user_id: int,
+        archived: bool = False,
         search: str | None = None,
-        order_by: str = "id",
-        direction: str = "asc",
+        order_by: str = "updated_at",
+        direction: str = "desc",
         limit: int = 10,
         offset: int = 0,
     ) -> list[Note]:
-        query = select(Note).where(Note.user_id == user_id)
+        query = select(Note).where(Note.user_id == user_id, Note.is_archived.is_(archived))
 
         if search:
             pattern = f"%{search}%"
             query = query.where(or_(Note.title.ilike(pattern), Note.content.ilike(pattern)))
 
-        allowed_sort = {"id", "title", "created_at"}
+        allowed_sort = {"id", "title", "created_at", "updated_at"}
         if order_by not in allowed_sort:
-            order_by = "id"
-        order_column = getattr(Note, order_by, Note.id)
-        query = query.order_by(desc(order_column) if direction == "desc" else asc(order_column))
+            order_by = "updated_at"
+        order_column = getattr(Note, order_by, Note.updated_at)
+        query = query.order_by(desc(order_column) if direction == "desc" else asc(order_column), desc(Note.id))
 
         limit = max(1, min(limit, 500))
         offset = max(offset, 0)
@@ -68,11 +70,23 @@ class NoteRepository:
         await self.session.refresh(note)
         return note
 
-    async def delete(self, note_id: int, user_id: int) -> bool:
+    async def archive(self, note_id: int, user_id: int) -> bool:
         note = await self.get_by_id(note_id, user_id)
         if note is None:
             return False
 
-        await self.session.delete(note)
+        note.is_archived = True
+        note.archived_at = datetime.now(timezone.utc)
         await self.session.commit()
         return True
+
+    async def restore(self, note_id: int, user_id: int) -> Note | None:
+        note = await self.get_by_id(note_id, user_id)
+        if note is None or not note.is_archived:
+            return None
+
+        note.is_archived = False
+        note.archived_at = None
+        await self.session.commit()
+        await self.session.refresh(note)
+        return note

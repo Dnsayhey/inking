@@ -82,10 +82,11 @@ uv run python -m alembic downgrade -1
 - `POST /auth/logout`：注销当前 refresh 会话
 - `GET /auth/me`：获取当前登录用户信息
 - `POST /notes`：创建笔记
-- `GET /notes`：查询笔记列表（支持分页、排序、搜索）
+- `GET /notes`：查询笔记列表（支持分页、排序、搜索、`archived=true/false`）
 - `GET /notes/{note_id}`：查询单个笔记
 - `PUT /notes/{note_id}`：更新笔记
-- `DELETE /notes/{note_id}`：删除笔记
+- `DELETE /notes/{note_id}`：归档笔记（软删除）
+- `POST /notes/{note_id}/restore`：恢复已归档笔记
 
 `/notes` 路由组已启用 Bearer Token 鉴权，请在请求头中携带：  
 `Authorization: Bearer <access_token>`

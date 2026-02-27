@@ -16,14 +16,16 @@ class NoteService:
     async def list_notes(
         self,
         user_id: int,
+        archived: bool = False,
         search: str | None = None,
-        order_by: str = "id",
-        direction: str = "asc",
+        order_by: str = "updated_at",
+        direction: str = "desc",
         limit: int = 10,
         offset: int = 0,
     ) -> list[Note]:
         return await self.repository.get_all(
             user_id=user_id,
+            archived=archived,
             search=search,
             order_by=order_by,
             direction=direction,
@@ -38,4 +40,7 @@ class NoteService:
         return await self.repository.update(update_data, note_id, user_id)
 
     async def delete_note(self, note_id: int, user_id: int) -> bool:
-        return await self.repository.delete(note_id, user_id)
+        return await self.repository.archive(note_id, user_id)
+
+    async def restore_note(self, note_id: int, user_id: int) -> Note | None:
+        return await self.repository.restore(note_id, user_id)

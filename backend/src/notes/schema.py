@@ -20,6 +20,9 @@ class NoteUpdate(BaseModel):
 class NoteRead(NoteBase):
     id: int
     created_at: datetime
+    updated_at: datetime
+    is_archived: bool
+    archived_at: datetime | None
 
     model_config = {
         "from_attributes": True

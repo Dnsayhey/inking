@@ -45,9 +45,10 @@ async def get_note(
 
 @router.get("", response_model=List[NoteRead])
 async def list_notes(
+    archived: bool = False,
     search: str | None = None,
-    order_by: str = "id",
-    direction: str = "asc",
+    order_by: str = "updated_at",
+    direction: str = "desc",
     limit: int = 10,
     offset: int = 0,
     service: NoteService = Depends(get_note_service),
@@ -55,6 +56,7 @@ async def list_notes(
 ) -> List[Note]:
     return await service.list_notes(
         user_id=current_user.id,
+        archived=archived,
         search=search,
         order_by=order_by,
         direction=direction,
@@ -85,3 +87,15 @@ async def delete_note(
     success = await service.delete_note(note_id, current_user.id)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
+
+
+@router.post("/{note_id}/restore", response_model=NoteRead)
+async def restore_note(
+    note_id: int,
+    service: NoteService = Depends(get_note_service),
+    current_user: User = Depends(get_current_user),
+) -> Note:
+    note = await service.restore_note(note_id, current_user.id)
+    if not note:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在或未归档")
+    return note

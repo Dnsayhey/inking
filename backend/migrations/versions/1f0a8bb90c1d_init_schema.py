@@ -40,12 +40,15 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Integer(), nullable=False),
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
+        sa.Column("is_archived", sa.Boolean(), nullable=False),
+        sa.Column("archived_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], name=op.f("notes_user_id_fkey"), ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name=op.f("notes_pkey")),
     )
     op.create_index(op.f("notes_created_at_idx"), "notes", ["created_at"], unique=False)
+    op.create_index(op.f("notes_is_archived_idx"), "notes", ["is_archived"], unique=False)
     op.create_index(op.f("notes_user_id_idx"), "notes", ["user_id"], unique=False)
 
     op.create_table(
@@ -75,6 +78,7 @@ def downgrade() -> None:
     op.drop_table("refresh_sessions")
 
     op.drop_index(op.f("notes_user_id_idx"), table_name="notes")
+    op.drop_index(op.f("notes_is_archived_idx"), table_name="notes")
     op.drop_index(op.f("notes_created_at_idx"), table_name="notes")
     op.drop_table("notes")
 
