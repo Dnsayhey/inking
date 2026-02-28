@@ -14,16 +14,35 @@ type ToastContextValue = {
 
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
-function toastClassName(type: ToastType): string {
-  switch (type) {
-    case "success":
-      return "border-emerald-200 bg-emerald-50 text-emerald-800";
-    case "error":
-      return "border-red-200 bg-red-50 text-red-800";
-    case "info":
-    default:
-      return "border-slate-200 bg-white text-slate-800";
+const WEEKDAY_COLORS: Record<number, string> = {
+  0: "#a855f7", // Sunday
+  1: "#ef4444", // Monday
+  2: "#f97316", // Tuesday
+  3: "#eab308", // Wednesday
+  4: "#22c55e", // Thursday
+  5: "#06b6d4", // Friday
+  6: "#3b82f6", // Saturday
+};
+
+function hexToRgba(hex: string, alpha: number): string {
+  const raw = hex.trim().replace("#", "");
+  const normalized = raw.length === 3 ? raw.split("").map((c) => `${c}${c}`).join("") : raw;
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+    return `rgba(15,23,42,${alpha})`;
   }
+  const r = Number.parseInt(normalized.slice(0, 2), 16);
+  const g = Number.parseInt(normalized.slice(2, 4), 16);
+  const b = Number.parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function toastStyle() {
+  const color = WEEKDAY_COLORS[new Date().getDay()] ?? "#3b82f6";
+  return {
+    color,
+    borderColor: hexToRgba(color, 0.45),
+    backgroundColor: hexToRgba(color, 0.3),
+  };
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -46,7 +65,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto rounded-xl border px-3 py-2 text-sm font-medium shadow-sm ${toastClassName(toast.type)}`}
+            className="pointer-events-auto rounded-xl border px-3 py-2 text-sm font-medium shadow-sm"
+            style={toastStyle()}
           >
             {toast.message}
           </div>

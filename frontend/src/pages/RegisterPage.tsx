@@ -1,6 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
@@ -8,22 +10,36 @@ import { login, register } from "../api/auth";
 import { setTokens } from "../auth/token";
 import { FieldError, FormError, PrimaryButton, TextInput, useToast } from "../components/ui";
 
-const registerSchema = z
-  .object({
-    username: z.string().min(3, "用户名至少 3 个字符").max(64, "用户名最多 64 个字符"),
-    password: z.string().min(8, "密码至少 8 个字符").max(128, "密码最多 128 个字符"),
-    confirmPassword: z.string().min(8, "请确认密码"),
-  })
-  .refine((values) => values.password === values.confirmPassword, {
-    path: ["confirmPassword"],
-    message: "两次输入的密码不一致",
-  });
-
-type RegisterFormData = z.infer<typeof registerSchema>;
+type RegisterFormData = {
+  username: string;
+  password: string;
+  confirmPassword: string;
+};
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { showToast } = useToast();
+  const registerSchema = useMemo(
+    () =>
+      z
+        .object({
+          username: z
+            .string()
+            .min(3, t("auth.validation.usernameMin"))
+            .max(64, t("auth.validation.usernameMax")),
+          password: z
+            .string()
+            .min(8, t("auth.validation.passwordMin"))
+            .max(128, t("auth.validation.passwordMax")),
+          confirmPassword: z.string().min(8, t("auth.validation.confirmPasswordRequired")),
+        })
+        .refine((values) => values.password === values.confirmPassword, {
+          path: ["confirmPassword"],
+          message: t("auth.validation.passwordMismatch"),
+        }),
+    [t],
+  );
   const {
     register: registerField,
     handleSubmit,
@@ -39,11 +55,11 @@ export function RegisterPage() {
     },
     onSuccess: (tokens) => {
       setTokens(tokens.access_token, tokens.refresh_token);
-      showToast("注册并登录成功", "success");
+      showToast(t("auth.registerSuccess"), "success");
       navigate("/", { replace: true });
     },
     onError: () => {
-      showToast("注册失败，用户名可能已存在", "error");
+      showToast(t("auth.registerFailed"), "error");
     },
   });
 
@@ -54,51 +70,42 @@ export function RegisterPage() {
   return (
     <div className="flex min-h-screen items-center justify-center p-5">
       <div className="w-full max-w-md rounded-2xl border border-slate-300 bg-white/90 p-6 shadow-elev-xl backdrop-blur">
-        <p className="m-0 text-xs font-bold tracking-[0.09em] text-sky-700">INKING · 墨记</p>
-        <h1 className="mt-1.5 text-[1.75rem] font-bold">创建新账号</h1>
+        <p className="m-0 text-xs font-bold tracking-[0.09em] text-sky-700">{t("common.appName")}</p>
+        <h1 className="mt-1.5 text-[1.75rem] font-bold">{t("auth.createAccount")}</h1>
 
         <form className="grid gap-2" onSubmit={handleSubmit(onSubmit)}>
           <label className="text-sm font-semibold" htmlFor="username">
-            用户名
+            {t("auth.username")}
           </label>
-          <TextInput
-            id="username"
-            {...registerField("username")}
-            placeholder="例如：yanlei"
-          />
+          <TextInput id="username" {...registerField("username")} placeholder={t("auth.usernameExamplePlaceholder")} />
           {errors.username ? <FieldError>{errors.username.message}</FieldError> : null}
 
           <label className="text-sm font-semibold" htmlFor="password">
-            密码
+            {t("auth.password")}
           </label>
-          <TextInput
-            id="password"
-            type="password"
-            {...registerField("password")}
-            placeholder="至少 8 个字符"
-          />
+          <TextInput id="password" type="password" {...registerField("password")} placeholder={t("auth.passwordMinPlaceholder")} />
           {errors.password ? <FieldError>{errors.password.message}</FieldError> : null}
 
           <label className="text-sm font-semibold" htmlFor="confirmPassword">
-            确认密码
+            {t("auth.confirmPassword")}
           </label>
           <TextInput
             id="confirmPassword"
             type="password"
             {...registerField("confirmPassword")}
-            placeholder="再次输入密码"
+            placeholder={t("auth.confirmPasswordPlaceholder")}
           />
           {errors.confirmPassword ? <FieldError>{errors.confirmPassword.message}</FieldError> : null}
 
-          {registerMutation.isError ? <FormError>注册失败，用户名可能已存在</FormError> : null}
+          {registerMutation.isError ? <FormError>{t("auth.registerFailed")}</FormError> : null}
 
           <PrimaryButton disabled={registerMutation.isPending} type="submit">
-            {registerMutation.isPending ? "注册中..." : "注册并登录"}
+            {registerMutation.isPending ? t("auth.registering") : t("auth.registerAndLogin")}
           </PrimaryButton>
         </form>
 
         <p className="mt-4 text-[0.92rem] text-slate-600">
-          已有账号？<Link to="/login">去登录</Link>
+          {t("auth.hasAccount")}<Link to="/login">{t("auth.goLogin")}</Link>
         </p>
       </div>
     </div>

@@ -59,6 +59,11 @@ export async function deleteNote(noteId: number) {
   await api.delete(`/notes/${noteId}`);
 }
 
+export async function restoreNote(noteId: number) {
+  const response = await api.post<Note>(`/notes/${noteId}/restore`);
+  return response.data;
+}
+
 export async function setNoteTags(noteId: number, tagIds: number[]) {
   const response = await api.put<Note>(`/notes/${noteId}/tags`, { tag_ids: tagIds });
   return response.data;
