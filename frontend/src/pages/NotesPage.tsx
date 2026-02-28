@@ -1,18 +1,38 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Hash, Plus } from "lucide-react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlarmClock, ArrowLeft, Hash, Pencil, Plus, Trash2, X } from "lucide-react";
 import { KeyboardEventHandler, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
-import { createNote, deleteNote, listNotes, Note, restoreNote, setNoteTags, updateNote } from "../api/notes";
+import {
+  createNote,
+  createNoteReminder,
+  deleteNote,
+  deleteNoteReminder,
+  listNoteReminders,
+  listNotes,
+  Note,
+  NoteReminder,
+  NoteReminderPayload,
+  restoreNote,
+  setNoteTags,
+  updateNote,
+  updateNoteReminder,
+} from "../api/notes";
 import { createTag, listTags, Tag } from "../api/tags";
 import { Card, DropdownMenu, FieldError, FormError, PrimaryButton, TagChip, TextInput, useToast } from "../components/ui";
 
 type NoteFormData = {
   content: string;
+};
+
+type ReminderFormData = NoteReminderPayload;
+type PendingReminder = {
+  id: number;
+  data: ReminderFormData;
 };
 
 type NotesFilters = {
@@ -99,12 +119,17 @@ function getTodayWeekdayColor(): string {
   return WEEKDAY_COLORS[new Date().getDay()] ?? "#3b82f6";
 }
 
+function normalizeTimeToSeconds(input: string): string {
+  return input.length === 5 ? `${input}:00` : input;
+}
+
 export function NotesPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { t } = useTranslation();
   const { showToast } = useToast();
   const nextTempIdRef = useRef(-1);
+  const nextPendingReminderIdRef = useRef(-1);
   const isArchivedView = searchParams.get("view") === "archived";
   const [searchText, setSearchText] = useState("");
   const [debouncedSearchText, setDebouncedSearchText] = useState("");
@@ -116,6 +141,20 @@ export function NotesPage() {
   const [composerTagIds, setComposerTagIds] = useState<number[]>([]);
   const [isComposerTagPickerOpen, setIsComposerTagPickerOpen] = useState(false);
   const [composerTagKeyword, setComposerTagKeyword] = useState("");
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [editingReminderId, setEditingReminderId] = useState<number | null>(null);
+  const [pendingReminders, setPendingReminders] = useState<PendingReminder[]>([]);
+  const [reminderForm, setReminderForm] = useState<ReminderFormData>({
+    title: "",
+    calendar_type: "solar",
+    month: 1,
+    day: 1,
+    is_leap_month: false,
+    time_of_day: "09:00",
+    timezone: "Asia/Shanghai",
+    remind_before_days: 0,
+    is_active: true,
+  });
   const composerTagPickerWrapRef = useRef<HTMLDivElement | null>(null);
 
   const tagsQuery = useQuery({
@@ -127,6 +166,12 @@ export function NotesPage() {
     queryKey: ["notes", { archived: isArchivedView, search: debouncedSearchText, tagIds: selectedTagIds }],
     queryFn: () =>
       listNotes({ archived: isArchivedView, tagIds: selectedTagIds, search: debouncedSearchText || undefined }),
+  });
+
+  const remindersQuery = useQuery({
+    queryKey: ["reminders", editingNoteId],
+    queryFn: () => listNoteReminders(editingNoteId as number),
+    enabled: editingNoteId !== null,
   });
 
   const {
@@ -158,12 +203,46 @@ export function NotesPage() {
   };
 
   const createNoteMutation = useMutation({
-    mutationFn: async ({ content, tagIds }: { content: string; tagIds: number[] }) => {
-      const created = await createNote({ content });
+    mutationFn: async ({
+      content,
+      tagIds,
+      reminders,
+    }: {
+      content: string;
+      tagIds: number[];
+      reminders: ReminderFormData[];
+    }) => {
+      let created = await createNote({ content });
       if (tagIds.length === 0) {
-        return created;
+        // noop
+      } else {
+        created = await setNoteTags(created.id, tagIds);
       }
-      return setNoteTags(created.id, tagIds);
+
+      let reminderFailed = 0;
+      let reminderCreated = 0;
+      const failedReminders: ReminderFormData[] = [];
+      if (reminders.length > 0) {
+        const settled = await Promise.allSettled(
+          reminders.map((item) =>
+            createNoteReminder(created.id, {
+              ...item,
+              title: item.title.trim(),
+              time_of_day: normalizeTimeToSeconds(item.time_of_day),
+            }),
+          ),
+        );
+        settled.forEach((result, index) => {
+          if (result.status === "fulfilled") {
+            reminderCreated += 1;
+          } else {
+            reminderFailed += 1;
+            failedReminders.push(reminders[index]);
+          }
+        });
+      }
+
+      return { note: created, reminderFailed, reminderCreated, failedReminders };
     },
     onMutate: async ({ content, tagIds }): Promise<NotesMutationContext> => {
       await queryClient.cancelQueries({ queryKey: ["notes"] });
@@ -186,7 +265,8 @@ export function NotesPage() {
       }
       showToast(t("notes.toast.createFailed"), "error");
     },
-    onSuccess: (createdNote, _variables, context) => {
+    onSuccess: (result, _variables, context) => {
+      const createdNote = result.note;
       updateAllNotesCaches((notes, filters) => {
         const next = context?.tempId ? notes.filter((note) => note.id !== context.tempId) : notes;
         if (!noteMatchesFilters(createdNote, filters)) {
@@ -195,9 +275,23 @@ export function NotesPage() {
         return [createdNote, ...next.filter((note) => note.id !== createdNote.id)];
       });
       reset({ content: "" });
+      setEditingNoteId(createdNote.id);
       setComposerTagIds([]);
       setComposerTagKeyword("");
       setIsComposerTagPickerOpen(false);
+      if (result.failedReminders.length > 0) {
+        setPendingReminders(result.failedReminders.map((item) => ({ id: nextPendingReminderIdRef.current--, data: item })));
+        setIsReminderModalOpen(true);
+      } else {
+        setPendingReminders([]);
+      }
+      if (result.reminderCreated > 0) {
+        showToast(t("notes.toast.reminderCreatedAfterSave", { count: result.reminderCreated }), "success");
+      }
+      if (result.reminderFailed > 0) {
+        showToast(t("notes.toast.reminderPartialFailed", { count: result.reminderFailed }), "error");
+      }
+      void queryClient.invalidateQueries({ queryKey: ["reminders", createdNote.id] });
       showToast(t("notes.toast.created"), "success");
     },
     onSettled: async () => {
@@ -318,12 +412,58 @@ export function NotesPage() {
     },
   });
 
+  const createReminderMutation = useMutation({
+    mutationFn: async (payload: ReminderFormData) => {
+      if (!editingNoteId) {
+        throw new Error("missing note id");
+      }
+      return createNoteReminder(editingNoteId, payload);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["reminders", editingNoteId] });
+      showToast(t("notes.toast.reminderCreated"), "success");
+    },
+    onError: () => showToast(t("notes.toast.reminderCreateFailed"), "error"),
+  });
+
+  const updateReminderMutation = useMutation({
+    mutationFn: async ({ reminderId, payload }: { reminderId: number; payload: Partial<ReminderFormData> }) => {
+      if (!editingNoteId) {
+        throw new Error("missing note id");
+      }
+      return updateNoteReminder(editingNoteId, reminderId, payload);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["reminders", editingNoteId] });
+      showToast(t("notes.toast.reminderUpdated"), "success");
+    },
+    onError: () => showToast(t("notes.toast.reminderUpdateFailed"), "error"),
+  });
+
+  const deleteReminderMutation = useMutation({
+    mutationFn: async (reminderId: number) => {
+      if (!editingNoteId) {
+        throw new Error("missing note id");
+      }
+      await deleteNoteReminder(editingNoteId, reminderId);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["reminders", editingNoteId] });
+      showToast(t("notes.toast.reminderDeleted"), "success");
+    },
+    onError: () => showToast(t("notes.toast.reminderDeleteFailed"), "error"),
+  });
+
   const onCreateNote = async (data: NoteFormData) => {
     if (editingNoteId) {
       await updateNoteMutation.mutateAsync({ noteId: editingNoteId, content: data.content, tagIds: composerTagIds });
       return;
     }
-    await createNoteMutation.mutateAsync({ content: data.content, tagIds: composerTagIds });
+    await createNoteMutation.mutateAsync({
+      content: data.content,
+      tagIds: composerTagIds,
+      reminders: pendingReminders.map((item) => item.data),
+    });
   };
 
   const toggleTagFilter = (tagId: number) => {
@@ -350,8 +490,92 @@ export function NotesPage() {
     }
   };
 
+  const resetReminderForm = () => {
+    setEditingReminderId(null);
+    setReminderForm({
+      title: "",
+      calendar_type: "solar",
+      month: 1,
+      day: 1,
+      is_leap_month: false,
+      time_of_day: "09:00",
+      timezone: "Asia/Shanghai",
+      remind_before_days: 0,
+      is_active: true,
+    });
+  };
+
+  const openReminderModal = () => {
+    setIsReminderModalOpen(true);
+  };
+
+  const onSaveReminder = async () => {
+    const payload: ReminderFormData = {
+      ...reminderForm,
+      title: reminderForm.title.trim(),
+      time_of_day: normalizeTimeToSeconds(reminderForm.time_of_day),
+    };
+    if (!payload.title) {
+      showToast(t("notes.reminderTitleRequired"), "error");
+      return;
+    }
+    if (editingReminderId) {
+      if (editingNoteId) {
+        await updateReminderMutation.mutateAsync({ reminderId: editingReminderId, payload });
+      } else {
+        setPendingReminders((prev) =>
+          prev.map((item) => (item.id === editingReminderId ? { ...item, data: { ...payload } } : item)),
+        );
+        showToast(t("notes.toast.reminderUpdated"), "success");
+      }
+    } else {
+      if (editingNoteId) {
+        await createReminderMutation.mutateAsync(payload);
+      } else {
+        setPendingReminders((prev) => [...prev, { id: nextPendingReminderIdRef.current--, data: { ...payload } }]);
+        showToast(t("notes.toast.reminderQueued"), "success");
+      }
+    }
+    resetReminderForm();
+  };
+
+  const startEditReminder = (item: NoteReminder) => {
+    setEditingReminderId(item.id);
+    setReminderForm({
+      title: item.title,
+      calendar_type: item.calendar_type,
+      month: item.month,
+      day: item.day,
+      is_leap_month: item.is_leap_month,
+      time_of_day: item.time_of_day.slice(0, 5),
+      timezone: item.timezone,
+      remind_before_days: item.remind_before_days,
+      is_active: item.is_active,
+    });
+  };
+
+  const startEditPendingReminder = (item: PendingReminder) => {
+    setEditingReminderId(item.id);
+    setReminderForm({ ...item.data });
+  };
+
   const tags = tagsQuery.data ?? [];
   const notes = notesQuery.data ?? [];
+  const currentReminders = remindersQuery.data ?? [];
+  const reminderCount = editingNoteId ? currentReminders.length : pendingReminders.length;
+  const reminderCountQueries = useQueries({
+    queries: notes.map((note) => ({
+      queryKey: ["reminders", note.id],
+      queryFn: () => listNoteReminders(note.id),
+    })),
+  });
+  const reminderCountByNoteId = useMemo(() => {
+    const result: Record<number, number> = {};
+    notes.forEach((note, index) => {
+      result[note.id] = reminderCountQueries[index]?.data?.length ?? 0;
+    });
+    return result;
+  }, [notes, reminderCountQueries]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -365,6 +589,8 @@ export function NotesPage() {
     setEditingNoteId(null);
     setIsComposerTagPickerOpen(false);
     setComposerTagKeyword("");
+    setIsReminderModalOpen(false);
+    resetReminderForm();
   }, [isArchivedView]);
 
   useEffect(() => {
@@ -584,6 +810,14 @@ export function NotesPage() {
                       </div>
                     ) : null}
                   </div>
+                  <button
+                    className="flex h-8 items-center gap-1 rounded-full border border-orange-300 bg-orange-50 px-2.5 text-xs font-semibold text-orange-800 hover:bg-orange-100"
+                    onClick={openReminderModal}
+                    type="button"
+                  >
+                    <AlarmClock className="h-3.5 w-3.5" />
+                    <span>{reminderCount}</span>
+                  </button>
                 </div>
                 <PrimaryButton disabled={saving} type="submit">
                   {saving ? t("notes.saving") : editingNoteId ? t("notes.saveChanges") : t("notes.save")}
@@ -611,7 +845,13 @@ export function NotesPage() {
           {notes.map((note) => (
             <Card key={note.id} className="p-3">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs text-slate-500">{formatRelativeTime(note.updated_at, t)}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">{formatRelativeTime(note.updated_at, t)}</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-700">
+                    <AlarmClock className="h-3 w-3" />
+                    {reminderCountByNoteId[note.id] ?? 0}
+                  </span>
+                </div>
                 <DropdownMenu
                   items={
                     isArchivedView
@@ -664,6 +904,225 @@ export function NotesPage() {
           ))}
         </div>
       </section>
+
+      {isReminderModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-4 shadow-elev-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-bold text-slate-900">{t("notes.remindersTitle", { count: reminderCount })}</h2>
+              <button
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                onClick={() => {
+                  setIsReminderModalOpen(false);
+                  resetReminderForm();
+                }}
+                type="button"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mb-4 max-h-[280px] space-y-2 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+              {editingNoteId && remindersQuery.isLoading ? <p className="text-sm text-slate-500">{t("notes.loading")}</p> : null}
+              {editingNoteId && !remindersQuery.isLoading && currentReminders.length === 0 ? (
+                <p className="text-sm text-slate-500">{t("notes.reminderEmpty")}</p>
+              ) : null}
+              {!editingNoteId && pendingReminders.length === 0 ? (
+                <p className="text-sm text-slate-500">{t("notes.reminderDraftEmpty")}</p>
+              ) : null}
+              {(editingNoteId
+                ? currentReminders.map((item) => ({
+                    id: item.id,
+                    title: item.title,
+                    calendar_type: item.calendar_type,
+                    month: item.month,
+                    day: item.day,
+                    is_leap_month: item.is_leap_month,
+                    time_of_day: item.time_of_day,
+                    timezone: item.timezone,
+                    remind_before_days: item.remind_before_days,
+                    is_active: item.is_active,
+                    source: "server" as const,
+                  }))
+                : pendingReminders.map((item) => ({
+                    id: item.id,
+                    title: item.data.title,
+                    calendar_type: item.data.calendar_type,
+                    month: item.data.month,
+                    day: item.data.day,
+                    is_leap_month: item.data.is_leap_month,
+                    time_of_day: item.data.time_of_day,
+                    timezone: item.data.timezone,
+                    remind_before_days: item.data.remind_before_days,
+                    is_active: item.data.is_active,
+                    source: "local" as const,
+                  }))
+              ).map((reminder) => (
+                <div key={reminder.id} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{reminder.title}</p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {reminder.calendar_type === "lunar" ? t("notes.calendarLunar") : t("notes.calendarSolar")} ·{" "}
+                        {reminder.month}/{reminder.day} · {reminder.time_of_day.slice(0, 5)} ·{" "}
+                        {t("notes.remindBeforeDays", { count: reminder.remind_before_days })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        className={`rounded-md px-2 py-1 text-xs font-semibold ${
+                          reminder.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
+                        }`}
+                        onClick={() => {
+                          if (reminder.source === "server") {
+                            updateReminderMutation.mutate({
+                              reminderId: reminder.id,
+                              payload: { is_active: !reminder.is_active },
+                            });
+                            return;
+                          }
+                          setPendingReminders((prev) =>
+                            prev.map((item) =>
+                              item.id === reminder.id
+                                ? { ...item, data: { ...item.data, is_active: !item.data.is_active } }
+                                : item,
+                            ),
+                          );
+                        }}
+                        type="button"
+                      >
+                        {reminder.is_active ? t("notes.active") : t("notes.inactive")}
+                      </button>
+                      <button
+                        className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                        onClick={() => {
+                          if (reminder.source === "server") {
+                            const target = currentReminders.find((item) => item.id === reminder.id);
+                            if (target) startEditReminder(target);
+                            return;
+                          }
+                          const target = pendingReminders.find((item) => item.id === reminder.id);
+                          if (target) startEditPendingReminder(target);
+                        }}
+                        type="button"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                        onClick={() => {
+                          if (reminder.source === "server") {
+                            deleteReminderMutation.mutate(reminder.id);
+                            return;
+                          }
+                          setPendingReminders((prev) => prev.filter((item) => item.id !== reminder.id));
+                          if (editingReminderId === reminder.id) {
+                            resetReminderForm();
+                          }
+                        }}
+                        type="button"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-lg border border-slate-200 p-3">
+              <p className="mb-2 text-sm font-semibold text-slate-800">
+                {editingReminderId ? t("notes.reminderEdit") : t("notes.reminderCreate")}
+              </p>
+              {!editingNoteId ? <p className="mb-2 text-xs text-slate-500">{t("notes.reminderDraftHint")}</p> : null}
+              <div className="grid gap-2 md:grid-cols-2">
+                <TextInput
+                  onChange={(e) => setReminderForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder={t("notes.reminderTitlePlaceholder")}
+                  value={reminderForm.title}
+                />
+                <select
+                  className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-blue-300"
+                  onChange={(e) =>
+                    setReminderForm((prev) => ({
+                      ...prev,
+                      calendar_type: e.target.value as "solar" | "lunar",
+                      is_leap_month: e.target.value === "lunar" ? prev.is_leap_month : false,
+                    }))
+                  }
+                  value={reminderForm.calendar_type}
+                >
+                  <option value="solar">{t("notes.calendarSolar")}</option>
+                  <option value="lunar">{t("notes.calendarLunar")}</option>
+                </select>
+                <TextInput
+                  onChange={(e) =>
+                    setReminderForm((prev) => ({
+                      ...prev,
+                      month: Number(e.target.value || 1),
+                    }))
+                  }
+                  type="number"
+                  value={String(reminderForm.month)}
+                />
+                <TextInput
+                  onChange={(e) =>
+                    setReminderForm((prev) => ({
+                      ...prev,
+                      day: Number(e.target.value || 1),
+                    }))
+                  }
+                  type="number"
+                  value={String(reminderForm.day)}
+                />
+                <TextInput
+                  onChange={(e) => setReminderForm((prev) => ({ ...prev, time_of_day: e.target.value }))}
+                  type="time"
+                  value={reminderForm.time_of_day}
+                />
+                <select
+                  className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-blue-300"
+                  onChange={(e) => setReminderForm((prev) => ({ ...prev, remind_before_days: Number(e.target.value) }))}
+                  value={String(reminderForm.remind_before_days)}
+                >
+                  <option value="0">{t("notes.remindBeforeDays", { count: 0 })}</option>
+                  <option value="1">{t("notes.remindBeforeDays", { count: 1 })}</option>
+                  <option value="3">{t("notes.remindBeforeDays", { count: 3 })}</option>
+                  <option value="7">{t("notes.remindBeforeDays", { count: 7 })}</option>
+                </select>
+                {reminderForm.calendar_type === "lunar" ? (
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      checked={reminderForm.is_leap_month}
+                      onChange={(e) => setReminderForm((prev) => ({ ...prev, is_leap_month: e.target.checked }))}
+                      type="checkbox"
+                    />
+                    {t("notes.leapMonth")}
+                  </label>
+                ) : null}
+              </div>
+              <div className="mt-3 flex justify-end gap-2">
+                {editingReminderId ? (
+                  <button
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={resetReminderForm}
+                    type="button"
+                  >
+                    {t("notes.cancelEdit")}
+                  </button>
+                ) : null}
+                <PrimaryButton
+                  disabled={createReminderMutation.isPending || updateReminderMutation.isPending}
+                  onClick={onSaveReminder}
+                  type="button"
+                >
+                  {editingReminderId ? t("notes.saveChanges") : t("notes.reminderAdd")}
+                </PrimaryButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

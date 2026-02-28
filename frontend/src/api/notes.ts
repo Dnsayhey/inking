@@ -16,6 +16,36 @@ export type Note = {
   tags: NoteTag[];
 };
 
+export type NoteReminder = {
+  id: number;
+  note_id: number;
+  title: string;
+  calendar_type: "solar" | "lunar";
+  month: number;
+  day: number;
+  is_leap_month: boolean;
+  time_of_day: string;
+  timezone: string;
+  remind_before_days: number;
+  is_active: boolean;
+  last_triggered_at: string | null;
+  next_trigger_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type NoteReminderPayload = {
+  title: string;
+  calendar_type: "solar" | "lunar";
+  month: number;
+  day: number;
+  is_leap_month: boolean;
+  time_of_day: string;
+  timezone: string;
+  remind_before_days: number;
+  is_active: boolean;
+};
+
 export type CreateNotePayload = {
   content: string;
 };
@@ -67,4 +97,23 @@ export async function restoreNote(noteId: number) {
 export async function setNoteTags(noteId: number, tagIds: number[]) {
   const response = await api.put<Note>(`/notes/${noteId}/tags`, { tag_ids: tagIds });
   return response.data;
+}
+
+export async function listNoteReminders(noteId: number) {
+  const response = await api.get<NoteReminder[]>(`/notes/${noteId}/reminders`);
+  return response.data;
+}
+
+export async function createNoteReminder(noteId: number, payload: NoteReminderPayload) {
+  const response = await api.post<NoteReminder>(`/notes/${noteId}/reminders`, payload);
+  return response.data;
+}
+
+export async function updateNoteReminder(noteId: number, reminderId: number, payload: Partial<NoteReminderPayload>) {
+  const response = await api.patch<NoteReminder>(`/notes/${noteId}/reminders/${reminderId}`, payload);
+  return response.data;
+}
+
+export async function deleteNoteReminder(noteId: number, reminderId: number) {
+  await api.delete(`/notes/${noteId}/reminders/${reminderId}`);
 }
