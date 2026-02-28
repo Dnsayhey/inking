@@ -50,8 +50,9 @@ export function RegisterPage() {
 
   const registerMutation = useMutation({
     mutationFn: async (payload: RegisterFormData) => {
-      await register({ username: payload.username, password: payload.password });
-      return login({ username: payload.username, password: payload.password });
+      const username = payload.username.trim();
+      await register({ username, password: payload.password });
+      return login({ username, password: payload.password });
     },
     onSuccess: (tokens) => {
       setTokens(tokens.access_token, tokens.refresh_token);

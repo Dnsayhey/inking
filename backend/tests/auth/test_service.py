@@ -25,6 +25,7 @@ class FakeSession:
 class FakeUserRepo:
     def __init__(self, users: dict[int, FakeUser] | None = None):
         self.users = users or {}
+        self.created_users: list[tuple[str, str]] = []
 
     async def get_by_username(self, username: str):
         for user in self.users.values():
@@ -34,6 +35,12 @@ class FakeUserRepo:
 
     async def get_by_id(self, user_id: int):
         return self.users.get(user_id)
+
+    async def create_user(self, username: str, password_hash: str):
+        self.created_users.append((username, password_hash))
+        user = FakeUser(id=max(self.users.keys(), default=0) + 1, username=username, password_hash=password_hash)
+        self.users[user.id] = user
+        return user
 
 
 class FakeRefreshRepo:
@@ -82,6 +89,36 @@ async def test_login_with_wrong_password_raises_value_error():
 
     with pytest.raises(ValueError, match="用户名或密码错误"):
         await service.login("alice", "wrong-password")
+
+
+@pytest.mark.asyncio
+async def test_login_strips_username_before_lookup(monkeypatch):
+    user = FakeUser(id=1, username="alice", password_hash=hash_password("password123"))
+    user_repo = FakeUserRepo(users={1: user})
+    service = AuthService(user_repo, FakeRefreshRepo())
+
+    monkeypatch.setattr("src.auth.service.create_access_token", lambda user_id: "access-token")
+    monkeypatch.setattr(
+        "src.auth.service.create_refresh_token",
+        lambda user_id: ("refresh-token", "login-jti", datetime.now(timezone.utc) + timedelta(days=7)),
+    )
+
+    result = await service.login("  alice  ", "password123")
+
+    assert result.access_token == "access-token"
+    assert result.refresh_token == "refresh-token"
+
+
+@pytest.mark.asyncio
+async def test_register_strips_username_before_create():
+    user_repo = FakeUserRepo()
+    service = AuthService(user_repo, FakeRefreshRepo())
+
+    created = await service.register("  alice  ", "password123")
+
+    assert created.username == "alice"
+    assert user_repo.created_users
+    assert user_repo.created_users[0][0] == "alice"
 
 
 @pytest.mark.asyncio

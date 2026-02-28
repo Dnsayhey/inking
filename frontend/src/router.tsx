@@ -1,20 +1,37 @@
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
-import { isAuthenticated } from "./auth/token";
+import { isAuthenticated, subscribeAuthChanged } from "./auth/token";
 import { AppLayout } from "./components/AppLayout";
 import { NotesPage } from "./pages/NotesPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
-  if (!isAuthenticated()) {
+  const [authed, setAuthed] = useState(() => isAuthenticated());
+
+  useEffect(() => {
+    return subscribeAuthChanged(() => {
+      setAuthed(isAuthenticated());
+    });
+  }, []);
+
+  if (!authed) {
     return <Navigate to="/login" replace />;
   }
   return children;
 }
 
 function PublicOnlyRoute({ children }: { children: JSX.Element }) {
-  if (isAuthenticated()) {
+  const [authed, setAuthed] = useState(() => isAuthenticated());
+
+  useEffect(() => {
+    return subscribeAuthChanged(() => {
+      setAuthed(isAuthenticated());
+    });
+  }, []);
+
+  if (authed) {
     return <Navigate to="/" replace />;
   }
   return children;

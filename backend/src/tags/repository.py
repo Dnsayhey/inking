@@ -55,8 +55,8 @@ class TagRepository:
         await self.session.commit()
         return True
 
-    async def exists_same_name(self, user_id: int, name: str, exclude_id: int | None = None) -> bool:
-        query = select(Tag.id).where(Tag.user_id == user_id, func.lower(Tag.name) == name.lower())
+    async def exists_same_name(self, user_id: int, name_key: str, exclude_id: int | None = None) -> bool:
+        query = select(Tag.id).where(Tag.user_id == user_id, Tag.name_key == name_key)
         if exclude_id is not None:
             query = query.where(Tag.id != exclude_id)
         return (await self.session.scalar(query)) is not None

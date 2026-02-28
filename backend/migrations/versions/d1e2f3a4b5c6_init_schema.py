@@ -1,8 +1,8 @@
 """init schema
 
-Revision ID: c9e6f0b1a2d3
+Revision ID: d1e2f3a4b5c6
 Revises:
-Create Date: 2026-02-28 00:20:00.000000
+Create Date: 2026-02-28 16:05:00.000000
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "c9e6f0b1a2d3"
+revision: str = "d1e2f3a4b5c6"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -55,12 +55,13 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=64), nullable=False),
+        sa.Column("name_key", sa.String(length=64), nullable=False),
         sa.Column("color", sa.String(length=32), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], name=op.f("tags_user_id_fkey"), ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name=op.f("tags_pkey")),
-        sa.UniqueConstraint("user_id", "name", name=op.f("tags_user_id_name_key")),
+        sa.UniqueConstraint("user_id", "name_key", name=op.f("tags_user_id_name_key_ci")),
     )
     op.create_index(op.f("tags_created_at_idx"), "tags", ["created_at"], unique=False)
     op.create_index(op.f("tags_user_id_idx"), "tags", ["user_id"], unique=False)

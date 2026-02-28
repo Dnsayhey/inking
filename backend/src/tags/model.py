@@ -6,11 +6,12 @@ from src.core.base_model import Base, DateTimeMixin
 
 class Tag(Base, DateTimeMixin):
     __tablename__ = "tags"
-    __table_args__ = (UniqueConstraint("user_id", "name", name="tags_user_id_name_key"),)
+    __table_args__ = (UniqueConstraint("user_id", "name_key", name="tags_user_id_name_key_ci"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
+    name_key: Mapped[str] = mapped_column(String(64), nullable=False)
     color: Mapped[str | None] = mapped_column(String(32), nullable=True)
     notes: Mapped[list["Note"]] = relationship(
         "Note",

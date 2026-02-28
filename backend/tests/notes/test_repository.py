@@ -30,7 +30,7 @@ async def create_user(session: AsyncSession, username: str) -> User:
 
 
 async def create_tag(session: AsyncSession, user_id: int, name: str) -> Tag:
-    tag = Tag(user_id=user_id, name=name)
+    tag = Tag(user_id=user_id, name=name, name_key=name.casefold())
     session.add(tag)
     await session.commit()
     await session.refresh(tag)

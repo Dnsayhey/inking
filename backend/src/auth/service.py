@@ -15,7 +15,15 @@ class AuthService:
         self.user_repo = user_repo
         self.refresh_repo = refresh_repo
 
+    @staticmethod
+    def normalize_username(username: str) -> str:
+        normalized = username.strip()
+        if not normalized:
+            raise ValueError("用户名不能为空")
+        return normalized
+
     async def register(self, username: str, password: str) -> User:
+        username = self.normalize_username(username)
         try:
             return await self.user_repo.create_user(
                 username=username,
@@ -25,6 +33,7 @@ class AuthService:
             raise ValueError("用户名已存在") from e
 
     async def login(self, username: str, password: str) -> TokenPair:
+        username = self.normalize_username(username)
         user = await self.user_repo.get_by_username(username)
         if not user or not user.is_active:
             raise ValueError("用户名或密码错误")

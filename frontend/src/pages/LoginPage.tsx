@@ -54,7 +54,10 @@ export function LoginPage() {
   });
 
   const onSubmit = (data: LoginFormData) => {
-    loginMutation.mutate(data);
+    loginMutation.mutate({
+      username: data.username.trim(),
+      password: data.password,
+    });
   };
 
   return (

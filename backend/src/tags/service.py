@@ -9,10 +9,15 @@ class TagService:
     def __init__(self, repository: TagRepository):
         self.repository = repository
 
+    @staticmethod
+    def normalize_name(raw_name: str) -> tuple[str, str]:
+        display_name = raw_name.strip()
+        return display_name, display_name.casefold()
+
     async def create_tag(self, user_id: int, data: TagCreate) -> Tag:
         payload = data.model_dump()
-        payload["name"] = payload["name"].strip()
-        if await self.repository.exists_same_name(user_id, payload["name"]):
+        payload["name"], payload["name_key"] = self.normalize_name(payload["name"])
+        if await self.repository.exists_same_name(user_id, payload["name_key"]):
             raise ValueError("标签名称已存在")
         try:
             return await self.repository.create(user_id, payload)
@@ -28,8 +33,8 @@ class TagService:
             return await self.repository.get_by_id(tag_id, user_id)
 
         if "name" in payload and payload["name"] is not None:
-            payload["name"] = payload["name"].strip()
-            if await self.repository.exists_same_name(user_id, payload["name"], exclude_id=tag_id):
+            payload["name"], payload["name_key"] = self.normalize_name(payload["name"])
+            if await self.repository.exists_same_name(user_id, payload["name_key"], exclude_id=tag_id):
                 raise ValueError("标签名称已存在")
         try:
             return await self.repository.update(tag_id, user_id, payload)
