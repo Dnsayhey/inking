@@ -8,7 +8,15 @@ from src.auth.model import User
 from src.core.database import get_db
 from src.notes.model import Note
 from src.notes.repository import NoteRepository
-from src.notes.schema import NoteCreate, NoteRead, NoteTagUpdate, NoteUpdate
+from src.notes.schema import (
+    NoteCreate,
+    NoteRead,
+    NoteReminderCreate,
+    NoteReminderRead,
+    NoteReminderUpdate,
+    NoteTagUpdate,
+    NoteUpdate,
+)
 from src.notes.service import NoteService
 
 router = APIRouter(
@@ -130,3 +138,62 @@ async def set_note_tags(
     if not note:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
     return note
+
+
+@router.get("/{note_id}/reminders", response_model=list[NoteReminderRead])
+async def list_note_reminders(
+    note_id: int,
+    service: NoteService = Depends(get_note_service),
+    current_user: User = Depends(get_current_user),
+) -> list[NoteReminderRead]:
+    reminders = await service.list_reminders(note_id, current_user.id)
+    if reminders is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
+    return reminders
+
+
+@router.post("/{note_id}/reminders", response_model=NoteReminderRead, status_code=status.HTTP_201_CREATED)
+async def create_note_reminder(
+    note_id: int,
+    data: NoteReminderCreate,
+    service: NoteService = Depends(get_note_service),
+    current_user: User = Depends(get_current_user),
+) -> NoteReminderRead:
+    try:
+        reminder = await service.create_reminder(note_id, current_user.id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    if reminder is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
+    return reminder
+
+
+@router.patch("/{note_id}/reminders/{reminder_id}", response_model=NoteReminderRead)
+async def update_note_reminder(
+    note_id: int,
+    reminder_id: int,
+    data: NoteReminderUpdate,
+    service: NoteService = Depends(get_note_service),
+    current_user: User = Depends(get_current_user),
+) -> NoteReminderRead:
+    try:
+        reminder = await service.update_reminder(note_id, reminder_id, current_user.id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    if reminder is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="提醒不存在或笔记不存在")
+    return reminder
+
+
+@router.delete("/{note_id}/reminders/{reminder_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_note_reminder(
+    note_id: int,
+    reminder_id: int,
+    service: NoteService = Depends(get_note_service),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    success = await service.delete_reminder(note_id, reminder_id, current_user.id)
+    if success is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="提醒不存在")

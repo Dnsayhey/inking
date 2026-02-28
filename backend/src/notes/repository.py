@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.notes.model import Note
+from src.notes.model import Note, NoteReminder
 from src.tags.model import NoteTag, Tag
 
 
@@ -133,3 +133,56 @@ class NoteRepository:
         note.tags = tags
         await self.session.commit()
         return await self.get_by_id(note_id, user_id)
+
+    async def list_reminders(self, note_id: int, user_id: int) -> list[NoteReminder] | None:
+        note = await self.get_by_id(note_id, user_id)
+        if note is None:
+            return None
+        query = select(NoteReminder).where(NoteReminder.note_id == note_id).order_by(asc(NoteReminder.id))
+        return list(await self.session.scalars(query))
+
+    async def create_reminder(self, note_id: int, user_id: int, reminder_data: Mapping[str, Any]) -> NoteReminder | None:
+        note = await self.get_by_id(note_id, user_id)
+        if note is None:
+            return None
+        reminder = NoteReminder(note_id=note_id, **reminder_data)
+        self.session.add(reminder)
+        try:
+            await self.session.commit()
+        except IntegrityError:
+            await self.session.rollback()
+            raise
+        await self.session.refresh(reminder)
+        return reminder
+
+    async def update_reminder(
+        self, note_id: int, reminder_id: int, user_id: int, reminder_data: Mapping[str, Any]
+    ) -> NoteReminder | None:
+        note = await self.get_by_id(note_id, user_id)
+        if note is None:
+            return None
+        query = select(NoteReminder).where(NoteReminder.id == reminder_id, NoteReminder.note_id == note_id)
+        reminder = await self.session.scalar(query)
+        if reminder is None:
+            return None
+        for key, value in reminder_data.items():
+            setattr(reminder, key, value)
+        try:
+            await self.session.commit()
+        except IntegrityError:
+            await self.session.rollback()
+            raise
+        await self.session.refresh(reminder)
+        return reminder
+
+    async def delete_reminder(self, note_id: int, reminder_id: int, user_id: int) -> bool | None:
+        note = await self.get_by_id(note_id, user_id)
+        if note is None:
+            return None
+        query = select(NoteReminder).where(NoteReminder.id == reminder_id, NoteReminder.note_id == note_id)
+        reminder = await self.session.scalar(query)
+        if reminder is None:
+            return False
+        await self.session.delete(reminder)
+        await self.session.commit()
+        return True
