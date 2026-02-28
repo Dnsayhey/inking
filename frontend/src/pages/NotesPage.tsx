@@ -1,18 +1,39 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Hash, Plus } from "lucide-react";
 import { KeyboardEventHandler, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { createNote, deleteNote, listNotes, setNoteTags, updateNote } from "../api/notes";
-import { createTag, listTags } from "../api/tags";
-import { FieldError, FormError, PrimaryButton, TextInput } from "../components/ui";
+import { createNote, deleteNote, listNotes, Note, setNoteTags, updateNote } from "../api/notes";
+import { createTag, listTags, Tag } from "../api/tags";
+import { Card, DropdownMenu, FieldError, FormError, PrimaryButton, TagChip, TextInput, useToast } from "../components/ui";
 
 const noteSchema = z.object({
   content: z.string().min(1, "内容不能为空"),
 });
 
 type NoteFormData = z.infer<typeof noteSchema>;
+
+type NotesFilters = {
+  search: string;
+  tagIds: number[];
+};
+
+type NotesMutationContext = {
+  previous: Array<[readonly unknown[], Note[] | undefined]>;
+  tempId?: number;
+};
+
+const WEEKDAY_COLORS: Record<number, string> = {
+  0: "#a855f7", // Sunday
+  1: "#ef4444", // Monday
+  2: "#f97316", // Tuesday
+  3: "#eab308", // Wednesday
+  4: "#22c55e", // Thursday
+  5: "#06b6d4", // Friday
+  6: "#3b82f6", // Saturday
+};
 
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -25,8 +46,58 @@ function formatRelativeTime(iso: string): string {
   return `${day} 天前`;
 }
 
+function readNotesFilters(queryKey: readonly unknown[]): NotesFilters {
+  const candidate = queryKey[1];
+  if (!candidate || typeof candidate !== "object") {
+    return { search: "", tagIds: [] };
+  }
+  const record = candidate as Record<string, unknown>;
+  return {
+    search: typeof record.search === "string" ? record.search.trim().toLowerCase() : "",
+    tagIds: Array.isArray(record.tagIds)
+      ? record.tagIds.filter((value): value is number => typeof value === "number")
+      : [],
+  };
+}
+
+function noteMatchesFilters(note: Note, filters: NotesFilters): boolean {
+  if (filters.search && !note.content.toLowerCase().includes(filters.search)) {
+    return false;
+  }
+  if (filters.tagIds.length === 0) {
+    return true;
+  }
+  const noteTagIds = new Set(note.tags.map((tag) => tag.id));
+  return filters.tagIds.every((tagId) => noteTagIds.has(tagId));
+}
+
+function mapSelectedTags(allTags: Tag[], tagIds: number[]): Note["tags"] {
+  return allTags
+    .filter((tag) => tagIds.includes(tag.id))
+    .map((tag) => ({ id: tag.id, name: tag.name, color: tag.color }));
+}
+
+function buildOptimisticNote(tempId: number, content: string, tags: Note["tags"]): Note {
+  const now = new Date().toISOString();
+  return {
+    id: tempId,
+    content,
+    created_at: now,
+    updated_at: now,
+    is_archived: false,
+    archived_at: null,
+    tags,
+  };
+}
+
+function getTodayWeekdayColor(): string {
+  return WEEKDAY_COLORS[new Date().getDay()] ?? "#3b82f6";
+}
+
 export function NotesPage() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const nextTempIdRef = useRef(-1);
   const [searchText, setSearchText] = useState("");
   const [debouncedSearchText, setDebouncedSearchText] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
@@ -59,60 +130,165 @@ export function NotesPage() {
     defaultValues: { content: "" },
   });
 
+  const updateAllNotesCaches = (updater: (notes: Note[], filters: NotesFilters) => Note[]) => {
+    const cachedEntries = queryClient.getQueriesData<Note[]>({ queryKey: ["notes"] });
+    cachedEntries.forEach(([queryKey, cachedNotes]) => {
+      if (!cachedNotes) return;
+      queryClient.setQueryData<Note[]>(queryKey, updater(cachedNotes, readNotesFilters(queryKey)));
+    });
+  };
+
+  const restoreNotesCaches = (previous: NotesMutationContext["previous"]) => {
+    previous.forEach(([queryKey, cachedNotes]) => {
+      queryClient.setQueryData<Note[] | undefined>(queryKey, cachedNotes);
+    });
+  };
+
   const createNoteMutation = useMutation({
-    mutationFn: createNote,
-    onSuccess: async () => {
+    mutationFn: async ({ content, tagIds }: { content: string; tagIds: number[] }) => {
+      const created = await createNote({ content });
+      if (tagIds.length === 0) {
+        return created;
+      }
+      return setNoteTags(created.id, tagIds);
+    },
+    onMutate: async ({ content, tagIds }): Promise<NotesMutationContext> => {
+      await queryClient.cancelQueries({ queryKey: ["notes"] });
+      const previous = queryClient.getQueriesData<Note[]>({ queryKey: ["notes"] });
+      const allTags = queryClient.getQueryData<Tag[]>(["tags"]) ?? [];
+      const optimisticNote = buildOptimisticNote(nextTempIdRef.current--, content, mapSelectedTags(allTags, tagIds));
+
+      updateAllNotesCaches((notes, filters) => {
+        if (!noteMatchesFilters(optimisticNote, filters)) {
+          return notes;
+        }
+        return [optimisticNote, ...notes.filter((note) => note.id !== optimisticNote.id)];
+      });
+
+      return { previous, tempId: optimisticNote.id };
+    },
+    onError: (_error, _variables, context) => {
+      if (context) {
+        restoreNotesCaches(context.previous);
+      }
+      showToast("新建笔记失败", "error");
+    },
+    onSuccess: (createdNote, _variables, context) => {
+      updateAllNotesCaches((notes, filters) => {
+        const next = context?.tempId ? notes.filter((note) => note.id !== context.tempId) : notes;
+        if (!noteMatchesFilters(createdNote, filters)) {
+          return next;
+        }
+        return [createdNote, ...next.filter((note) => note.id !== createdNote.id)];
+      });
       reset({ content: "" });
+      setComposerTagIds([]);
+      setComposerTagKeyword("");
+      setIsComposerTagPickerOpen(false);
+      showToast("笔记已保存", "success");
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["notes"] });
     },
   });
 
   const updateNoteMutation = useMutation({
-    mutationFn: ({ noteId, content }: { noteId: number; content: string }) => updateNote(noteId, { content }),
-    onSuccess: async () => {
+    mutationFn: async ({ noteId, content, tagIds }: { noteId: number; content: string; tagIds: number[] }) => {
+      await updateNote(noteId, { content });
+      return setNoteTags(noteId, tagIds);
+    },
+    onMutate: async ({ noteId, content, tagIds }): Promise<NotesMutationContext> => {
+      await queryClient.cancelQueries({ queryKey: ["notes"] });
+      const previous = queryClient.getQueriesData<Note[]>({ queryKey: ["notes"] });
+      const allTags = queryClient.getQueryData<Tag[]>(["tags"]) ?? [];
+      const optimisticTags = mapSelectedTags(allTags, tagIds);
+      const optimisticUpdatedAt = new Date().toISOString();
+
+      updateAllNotesCaches((notes, filters) =>
+        notes
+          .map((note) =>
+            note.id === noteId
+              ? {
+                  ...note,
+                  content,
+                  tags: optimisticTags,
+                  updated_at: optimisticUpdatedAt,
+                }
+              : note,
+          )
+          .filter((note) => noteMatchesFilters(note, filters)),
+      );
+
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context) {
+        restoreNotesCaches(context.previous);
+      }
+      showToast("更新笔记失败", "error");
+    },
+    onSuccess: (updatedNote) => {
+      updateAllNotesCaches((notes, filters) => {
+        const next = notes.filter((note) => note.id !== updatedNote.id);
+        if (!noteMatchesFilters(updatedNote, filters)) {
+          return next;
+        }
+        return [updatedNote, ...next];
+      });
       setEditingNoteId(null);
       setOpenMenuNoteId(null);
       reset({ content: "" });
+      setComposerTagIds([]);
+      setComposerTagKeyword("");
+      setIsComposerTagPickerOpen(false);
+      showToast("笔记已更新", "success");
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["notes"] });
     },
   });
 
   const archiveNoteMutation = useMutation({
     mutationFn: deleteNote,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["notes"] });
+    onMutate: async (noteId): Promise<NotesMutationContext> => {
+      await queryClient.cancelQueries({ queryKey: ["notes"] });
+      const previous = queryClient.getQueriesData<Note[]>({ queryKey: ["notes"] });
+      updateAllNotesCaches((notes) => notes.filter((note) => note.id !== noteId));
+      return { previous };
     },
-  });
-
-  const setTagsMutation = useMutation({
-    mutationFn: ({ noteId, tagIds }: { noteId: number; tagIds: number[] }) => setNoteTags(noteId, tagIds),
-    onSuccess: async () => {
+    onError: (_error, _variables, context) => {
+      if (context) {
+        restoreNotesCaches(context.previous);
+      }
+      showToast("归档失败", "error");
+    },
+    onSuccess: () => {
+      showToast("笔记已归档", "success");
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["notes"] });
     },
   });
 
   const createTagMutation = useMutation({
     mutationFn: createTag,
-    onSuccess: async () => {
+    onSuccess: async (createdTag) => {
       setNewTagName("");
       setIsTagInputOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["tags"] });
+      showToast(`标签 #${createdTag.name} 已创建`, "success");
+    },
+    onError: () => {
+      showToast("创建标签失败，名称可能已存在", "error");
     },
   });
 
   const onCreateNote = async (data: NoteFormData) => {
     if (editingNoteId) {
-      await updateNoteMutation.mutateAsync({ noteId: editingNoteId, content: data.content });
-      await setTagsMutation.mutateAsync({ noteId: editingNoteId, tagIds: composerTagIds });
+      await updateNoteMutation.mutateAsync({ noteId: editingNoteId, content: data.content, tagIds: composerTagIds });
       return;
     }
-    const created = await createNoteMutation.mutateAsync({ content: data.content });
-    if (composerTagIds.length > 0) {
-      await setTagsMutation.mutateAsync({ noteId: created.id, tagIds: composerTagIds });
-    }
-    setComposerTagIds([]);
-    setComposerTagKeyword("");
-    setIsComposerTagPickerOpen(false);
+    await createNoteMutation.mutateAsync({ content: data.content, tagIds: composerTagIds });
   };
 
   const toggleTagFilter = (tagId: number) => {
@@ -122,11 +298,7 @@ export function NotesPage() {
   const onCreateTag = async () => {
     const name = newTagName.trim();
     if (!name) return;
-    try {
-      await createTagMutation.mutateAsync({ name });
-    } catch {
-      // error shown by status
-    }
+    await createTagMutation.mutateAsync({ name, color: getTodayWeekdayColor() });
   };
 
   const onTagInputKeyDown: KeyboardEventHandler<HTMLInputElement> = async (e) => {
@@ -198,7 +370,15 @@ export function NotesPage() {
   const createComposerTag = async () => {
     const keyword = composerTagKeyword.trim();
     if (!keyword) return;
-    const created = await createTagMutation.mutateAsync({ name: keyword });
+
+    const exactMatched = tags.find((tag) => tag.name.toLowerCase() === keyword.toLowerCase());
+    if (exactMatched) {
+      setComposerTagIds((prev) => (prev.includes(exactMatched.id) ? prev : [...prev, exactMatched.id]));
+      setComposerTagKeyword("");
+      return;
+    }
+
+    const created = await createTagMutation.mutateAsync({ name: keyword, color: getTodayWeekdayColor() });
     await queryClient.invalidateQueries({ queryKey: ["tags"] });
     setComposerTagIds((prev) => (prev.includes(created.id) ? prev : [...prev, created.id]));
     setComposerTagKeyword("");
@@ -226,35 +406,29 @@ export function NotesPage() {
     }
   };
 
-    return (
+  const saving = createNoteMutation.isPending || updateNoteMutation.isPending;
+
+  return (
     <div className="memo-layout">
-      <section className="border-r border-[#dbe1ea] bg-[#f8f8f6] p-4">
+      <section className="border-r border-surface-line bg-surface-page p-5">
         <div className="mb-4">
-          <TextInput
-            onChange={(e) => setSearchText(e.target.value)}
-            placeholder="搜索笔记..."
-            value={searchText}
-          />
+          <TextInput onChange={(e) => setSearchText(e.target.value)} placeholder="搜索笔记..." value={searchText} />
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-3">
+        <Card className="p-3">
           <p className="mb-2 text-[15px] font-bold text-slate-700">标签</p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {tags.map((tag) => {
               const selected = selectedTagIds.includes(tag.id);
               return (
-                <button
+                <TagChip
                   key={tag.id}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${
-                    selected
-                      ? "border-blue-700 bg-blue-700 text-white"
-                      : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300"
-                  }`}
                   onClick={() => toggleTagFilter(tag.id)}
-                  type="button"
+                  color={tag.color}
+                  variant={selected ? "filterSelected" : "filter"}
                 >
                   #{tag.name}
-                </button>
+                </TagChip>
               );
             })}
             {isTagInputOpen ? (
@@ -278,151 +452,137 @@ export function NotesPage() {
                 onClick={() => setIsTagInputOpen(true)}
                 type="button"
               >
-                +
+                <Plus className="mx-auto h-4 w-4" strokeWidth={2.5} />
               </button>
             )}
           </div>
           {createTagMutation.isError ? <FieldError>创建失败，可能标签已存在</FieldError> : null}
-        </div>
+        </Card>
       </section>
 
-      <section className="bg-[#f8f8f6] p-5">
-        <form className="rounded-2xl border border-[#dbe1ea] bg-white p-4" onSubmit={handleSubmit(onCreateNote)}>
-          <textarea
-            className="min-h-[84px] w-full resize-y border-none p-0 text-[15px] text-slate-900 outline-none placeholder:text-slate-400"
-            placeholder="此刻的想法..."
-            rows={4}
-            {...register("content")}
-          />
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <div className="flex min-h-8 flex-wrap items-center gap-2">
-              {composerSelectedTags.map((tag) => (
-                <button
-                  key={tag.id}
-                  className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700"
-                  onClick={() => toggleComposerTag(tag.id)}
-                  type="button"
-                >
-                  #{tag.name} ×
-                </button>
-              ))}
-              <div className="relative" ref={composerTagPickerWrapRef}>
-                {isComposerTagPickerOpen ? (
-                  <input
-                    autoFocus
-                    className="h-8 w-40 rounded-full border border-blue-300 bg-white px-2.5 text-xs font-semibold text-blue-900 outline-none"
-                    onChange={(e) => setComposerTagKeyword(e.target.value)}
-                    onKeyDown={onComposerTagInputKeyDown}
-                    placeholder="# 输入标签名"
-                    value={composerTagKeyword}
-                  />
-                ) : (
-                  <button
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-blue-300 bg-blue-50 text-lg font-bold leading-none text-blue-700"
-                    onClick={() => {
-                      setComposerTagKeyword("");
-                      setIsComposerTagPickerOpen(true);
-                    }}
-                    type="button"
-                  >
-                    #
-                  </button>
-                )}
-                {isComposerTagPickerOpen && composerFilteredTags.length > 0 ? (
-                  <div className="absolute left-0 top-[calc(100%+0.5rem)] z-30 flex w-[min(320px,calc(100vw-2rem))] flex-col gap-2 rounded-xl border border-blue-100 bg-white p-2 shadow-[0_10px_26px_rgba(15,23,42,0.14)]">
-                    <div className="flex max-h-[180px] flex-col gap-1.5 overflow-auto">
-                      {composerFilteredTags.map((tag) => {
-                        const checked = composerTagIds.includes(tag.id);
-                        return (
-                          <button
-                            key={tag.id}
-                            className={`flex items-center justify-start rounded-lg border px-2.5 py-1.5 text-left text-xs ${
-                              checked
-                                ? "border-blue-300 bg-blue-50 text-blue-800"
-                                : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
-                            }`}
-                            onClick={() => toggleComposerTag(tag.id)}
-                            type="button"
-                          >
-                            #{tag.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-            <PrimaryButton
-              disabled={createNoteMutation.isPending || updateNoteMutation.isPending || setTagsMutation.isPending}
-              type="submit"
-            >
-              {createNoteMutation.isPending || updateNoteMutation.isPending || setTagsMutation.isPending
-                ? "保存中..."
-                : editingNoteId
-                  ? "保存修改"
-                  : "保存"}
-            </PrimaryButton>
-          </div>
-          {errors.content ? <FieldError>{errors.content.message}</FieldError> : null}
-        </form>
-
-        <div className="mt-4 flex flex-col gap-3">
-          {notesQuery.isLoading ? <p>加载中...</p> : null}
-          {notesQuery.isError ? <FormError>加载失败，请刷新重试</FormError> : null}
-          {notes.length === 0 ? <p className="text-slate-600">暂无笔记</p> : null}
-          {notes.map((note) => (
-            <article key={note.id} className="rounded-2xl border border-[#dbe1ea] bg-white p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs text-slate-500">{formatRelativeTime(note.updated_at)}</span>
-                <div className="memo-menu-wrap relative">
-                  <button
-                    className="rounded-md border border-[#dbe1ea] bg-white px-2 py-0.5 text-base leading-none text-slate-500"
-                    onClick={() => setOpenMenuNoteId((prev) => (prev === note.id ? null : note.id))}
-                    type="button"
-                  >
-                    ...
-                  </button>
-                  {openMenuNoteId === note.id ? (
-                    <div className="absolute right-0 top-7 z-20 min-w-[108px] rounded-lg border border-[#dbe1ea] bg-white p-1 shadow-[0_8px_18px_rgba(15,23,42,0.12)]">
-                      <button
-                        className="w-full rounded-md bg-white px-2 py-1.5 text-left text-sm text-slate-900 hover:bg-slate-100"
-                        onClick={() => {
-                          reset({ content: note.content });
-                          setEditingNoteId(note.id);
-                          setComposerTagIds(note.tags.map((tag) => tag.id));
-                          setIsComposerTagPickerOpen(false);
-                          setComposerTagKeyword("");
-                          setOpenMenuNoteId(null);
-                        }}
-                        type="button"
-                      >
-                        编辑
-                      </button>
-                      <button
-                        className="w-full rounded-md bg-white px-2 py-1.5 text-left text-sm text-red-700 hover:bg-slate-100"
-                        disabled={archiveNoteMutation.isPending}
-                        onClick={() => {
-                          archiveNoteMutation.mutate(note.id);
-                          setOpenMenuNoteId(null);
-                        }}
-                        type="button"
-                      >
-                        归档
-                      </button>
+      <section className="bg-surface-page py-5 px-20">
+        <Card className="p-4">
+          <form onSubmit={handleSubmit(onCreateNote)}>
+            <textarea
+              className="min-h-[84px] w-full resize-y border-none p-0 text-[15px] text-slate-900 outline-none placeholder:text-slate-400"
+              placeholder="此刻的想法..."
+              rows={4}
+              {...register("content")}
+            />
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="flex min-h-8 flex-wrap items-center gap-2">
+                {composerSelectedTags.map((tag) => (
+                  <TagChip key={tag.id} color={tag.color} onClick={() => toggleComposerTag(tag.id)} variant="muted">
+                    #{tag.name} ×
+                  </TagChip>
+                ))}
+                <div className="relative" ref={composerTagPickerWrapRef}>
+                  {isComposerTagPickerOpen ? (
+                    <input
+                      autoFocus
+                      className="h-8 w-40 rounded-full border border-blue-300 bg-white px-2.5 text-xs font-semibold text-blue-900 outline-none"
+                      onChange={(e) => setComposerTagKeyword(e.target.value)}
+                      onKeyDown={onComposerTagInputKeyDown}
+                      placeholder="# 输入标签名"
+                      value={composerTagKeyword}
+                    />
+                  ) : (
+                    <button
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-blue-300 bg-blue-50 text-lg font-bold leading-none text-blue-700"
+                      onClick={() => {
+                        setComposerTagKeyword("");
+                        setIsComposerTagPickerOpen(true);
+                      }}
+                      type="button"
+                    >
+                      <Hash className="h-4 w-4" strokeWidth={2.5} />
+                    </button>
+                  )}
+                  {isComposerTagPickerOpen && composerFilteredTags.length > 0 ? (
+                    <div className="absolute left-0 top-[calc(100%+0.5rem)] z-30 flex w-[min(320px,calc(100vw-2rem))] flex-col gap-2 rounded-xl border border-blue-100 bg-white p-2 shadow-elev-lg">
+                      <div className="flex max-h-[180px] flex-col gap-1.5 overflow-auto">
+                        {composerFilteredTags.map((tag) => {
+                          const checked = composerTagIds.includes(tag.id);
+                          return (
+                            <button
+                              key={tag.id}
+                              className={`flex items-center justify-start rounded-lg border px-2.5 py-1.5 text-left text-xs ${
+                                checked
+                                  ? "border-blue-300 bg-blue-50 text-blue-800"
+                                  : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                              }`}
+                              onClick={() => toggleComposerTag(tag.id)}
+                              type="button"
+                            >
+                              #{tag.name}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   ) : null}
                 </div>
               </div>
+              <PrimaryButton disabled={saving} type="submit">
+                {saving ? "保存中..." : editingNoteId ? "保存修改" : "保存"}
+              </PrimaryButton>
+            </div>
+            {errors.content ? <FieldError>{errors.content.message}</FieldError> : null}
+          </form>
+        </Card>
+
+        <div className="mt-4 flex flex-col gap-3">
+          {notesQuery.isLoading
+            ? Array.from({ length: 3 }).map((_, index) => (
+                <Card key={index} className="animate-pulse p-3">
+                  <div className="mb-3 h-3 w-20 rounded bg-slate-200" />
+                  <div className="mb-2 h-3 w-full rounded bg-slate-200" />
+                  <div className="h-3 w-5/6 rounded bg-slate-200" />
+                </Card>
+              ))
+            : null}
+          {notesQuery.isError ? <FormError>加载失败，请刷新重试</FormError> : null}
+          {!notesQuery.isLoading && notes.length === 0 ? <p className="text-slate-600">暂无笔记</p> : null}
+          {notes.map((note) => (
+            <Card key={note.id} className="p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs text-slate-500">{formatRelativeTime(note.updated_at)}</span>
+                <DropdownMenu
+                  items={[
+                    {
+                      label: "编辑",
+                      onClick: () => {
+                        reset({ content: note.content });
+                        setEditingNoteId(note.id);
+                        setComposerTagIds(note.tags.map((tag) => tag.id));
+                        setIsComposerTagPickerOpen(false);
+                        setComposerTagKeyword("");
+                        setOpenMenuNoteId(null);
+                      },
+                    },
+                    {
+                      label: "归档",
+                      danger: true,
+                      disabled: archiveNoteMutation.isPending,
+                      onClick: () => {
+                        archiveNoteMutation.mutate(note.id);
+                        setOpenMenuNoteId(null);
+                      },
+                    },
+                  ]}
+                  onToggle={() => setOpenMenuNoteId((prev) => (prev === note.id ? null : note.id))}
+                  open={openMenuNoteId === note.id}
+                />
+              </div>
               <p className="mb-2 whitespace-pre-wrap text-slate-900">{note.content}</p>
               <div className="flex flex-wrap gap-1.5">
                 {note.tags.map((tag) => (
-                  <span key={tag.id} className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                  <TagChip key={tag.id} color={tag.color} variant="muted">
                     #{tag.name}
-                  </span>
+                  </TagChip>
                 ))}
               </div>
-            </article>
+            </Card>
           ))}
         </div>
       </section>

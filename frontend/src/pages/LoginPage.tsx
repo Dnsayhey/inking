@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { login } from "../api/auth";
 import { setTokens } from "../auth/token";
-import { FieldError, FormError, PrimaryButton, TextInput } from "../components/ui";
+import { FieldError, FormError, PrimaryButton, TextInput, useToast } from "../components/ui";
 
 const loginSchema = z.object({
   username: z.string().min(3, "用户名至少 3 个字符").max(64, "用户名最多 64 个字符"),
@@ -17,6 +17,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const {
     register,
     handleSubmit,
@@ -29,7 +30,11 @@ export function LoginPage() {
     mutationFn: login,
     onSuccess: (data) => {
       setTokens(data.access_token, data.refresh_token);
+      showToast("登录成功", "success");
       navigate("/", { replace: true });
+    },
+    onError: () => {
+      showToast("登录失败，请检查用户名和密码", "error");
     },
   });
 
@@ -39,7 +44,7 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-5">
-      <div className="w-full max-w-md rounded-2xl border border-slate-300 bg-white/90 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur">
+      <div className="w-full max-w-md rounded-2xl border border-slate-300 bg-white/90 p-6 shadow-elev-xl backdrop-blur">
         <p className="m-0 text-xs font-bold tracking-[0.09em] text-sky-700">INKING · 墨记</p>
         <h1 className="mt-1.5 text-[1.75rem] font-bold">欢迎回来</h1>
 

@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { login, register } from "../api/auth";
 import { setTokens } from "../auth/token";
-import { FieldError, FormError, PrimaryButton, TextInput } from "../components/ui";
+import { FieldError, FormError, PrimaryButton, TextInput, useToast } from "../components/ui";
 
 const registerSchema = z
   .object({
@@ -23,6 +23,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const {
     register: registerField,
     handleSubmit,
@@ -38,7 +39,11 @@ export function RegisterPage() {
     },
     onSuccess: (tokens) => {
       setTokens(tokens.access_token, tokens.refresh_token);
+      showToast("注册并登录成功", "success");
       navigate("/", { replace: true });
+    },
+    onError: () => {
+      showToast("注册失败，用户名可能已存在", "error");
     },
   });
 
@@ -48,7 +53,7 @@ export function RegisterPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-5">
-      <div className="w-full max-w-md rounded-2xl border border-slate-300 bg-white/90 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur">
+      <div className="w-full max-w-md rounded-2xl border border-slate-300 bg-white/90 p-6 shadow-elev-xl backdrop-blur">
         <p className="m-0 text-xs font-bold tracking-[0.09em] text-sky-700">INKING · 墨记</p>
         <h1 className="mt-1.5 text-[1.75rem] font-bold">创建新账号</h1>
 

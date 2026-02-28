@@ -10,6 +10,7 @@ export type Tag = {
 
 export type CreateTagPayload = {
   name: string;
+  color?: string | null;
 };
 
 export async function listTags(search?: string) {
