@@ -1,38 +1,30 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { useMemo } from "react";
 import { useForm } from "react-hook-form";
-import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { login } from "../api/auth";
 import { setTokens } from "../auth/token";
-import { Card, FieldError, FormError, PrimaryButton, TextInput, useToast } from "../components/ui";
+import { useToast } from "../components/ui";
 
 type LoginFormData = {
   username: string;
   password: string;
 };
 
+const loginSchema = z.object({
+  username: z
+    .string()
+    .min(3, "用户名至少 3 个字符")
+    .max(64, "用户名最多 64 个字符")
+    .regex(/^[A-Za-z0-9_]+$/, "用户名只能包含英文数字与下划线"),
+  password: z.string().min(8, "密码至少 8 个字符").max(128, "密码最多 128 个字符"),
+});
+
 export function LoginPage() {
   const navigate = useNavigate();
-  const { t } = useTranslation();
   const { showToast } = useToast();
-  const loginSchema = useMemo(
-    () =>
-      z.object({
-        username: z
-          .string()
-          .min(3, t("auth.validation.usernameMin"))
-          .max(64, t("auth.validation.usernameMax")),
-        password: z
-          .string()
-          .min(8, t("auth.validation.passwordMin"))
-          .max(128, t("auth.validation.passwordMax")),
-      }),
-    [t],
-  );
   const {
     register,
     handleSubmit,
@@ -43,79 +35,90 @@ export function LoginPage() {
 
   const loginMutation = useMutation({
     mutationFn: login,
-    onSuccess: (data) => {
-      setTokens(data.access_token, data.refresh_token);
-      showToast(t("auth.loginSuccess"), "success");
-      navigate("/", { replace: true });
+    onSuccess: (tokens) => {
+      setTokens(tokens.access_token, tokens.refresh_token);
+      showToast("登录成功", "success");
+      navigate("/notes", { replace: true });
     },
-    onError: () => {
-      showToast(t("auth.loginFailed"), "error");
-    },
+    onError: () => showToast("用户名或密码错误", "error"),
   });
 
-  const onSubmit = (data: LoginFormData) => {
+  const onSubmit = (values: LoginFormData) => {
     loginMutation.mutate({
-      username: data.username.trim(),
-      password: data.password,
+      username: values.username.trim(),
+      password: values.password,
     });
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-[960px] overflow-hidden p-0" tone="elevated">
-        <div className="grid md:grid-cols-[1.1fr_0.9fr]">
-          <section className="hidden bg-[radial-gradient(circle_at_20%_20%,#d7f0ff_0%,#ecf8ff_50%,#f7fbff_100%)] p-10 md:flex md:flex-col md:justify-between">
-            <div>
-              <p className="text-sm font-semibold tracking-[0.08em] text-[var(--brand-700)]">{t("common.appName")}</p>
-              <h1 className="mt-4 text-4xl font-bold leading-tight text-[var(--text-primary)]">{t("auth.welcomeBack")}</h1>
-              <p className="mt-3 max-w-sm text-sm text-[var(--text-secondary)]">
-                {t("auth.heroLoginDesc")}
-              </p>
-            </div>
-            <p className="text-xs text-[var(--text-muted)]">{t("auth.heroFootnote")}</p>
+    <div className="min-h-screen bg-[#F8FAFC] p-10">
+      <div className="mx-auto flex h-[min(700px,calc(100vh-5rem))] max-w-[1280px] flex-col gap-6">
+        <header className="flex h-11 items-center justify-between">
+          <p className="text-[22px] font-bold text-[#0F172A]">Inking Note · 墨记</p>
+          <p className="text-sm text-[#475569]">记录灵感，沉淀思考</p>
+        </header>
+
+        <div className="grid flex-1 items-center gap-20 md:grid-cols-[520px_360px] md:justify-center">
+          <section className="hidden space-y-3 md:block">
+            <h1 className="text-[40px] font-bold text-[#0F172A]">欢迎回到墨记</h1>
+            <p className="text-base text-[#334155]">开始记录吧！</p>
           </section>
 
-          <section className="bg-[var(--bg-panel)] p-6 sm:p-8">
-            <p className="text-xs font-semibold tracking-[0.08em] text-[var(--brand-700)] md:hidden">{t("common.appName")}</p>
-            <h2 className="mt-2 text-2xl font-bold text-[var(--text-primary)]">{t("auth.login")}</h2>
+          <section className="self-center rounded-[16px] border border-[#E2E8F0] bg-white p-5">
+            <div className="flex h-11 gap-2">
+              <div className="flex h-full flex-1 items-center justify-center rounded-[10px] bg-[#0F172A] text-sm font-semibold text-white">
+                登录
+              </div>
+              <Link
+                className="flex h-full flex-1 items-center justify-center rounded-[10px] bg-[#E2E8F0] text-sm font-semibold text-[#334155] transition hover:bg-[#CBD5E1]"
+                to="/register"
+              >
+                注册
+              </Link>
+            </div>
 
-            <form className="mt-5 grid gap-2" onSubmit={handleSubmit(onSubmit)}>
-              <label className="text-sm font-medium text-[var(--text-secondary)]" htmlFor="username">
-                {t("auth.username")}
-              </label>
-              <TextInput
-                id="username"
-                invalid={Boolean(errors.username)}
-                {...register("username")}
-                placeholder={t("auth.usernamePlaceholder")}
-              />
-              {errors.username ? <FieldError>{errors.username.message}</FieldError> : null}
+            <form className="mt-4 space-y-3" onSubmit={handleSubmit(onSubmit)}>
+              <div>
+                <input
+                  className={`h-12 w-full rounded-[10px] border bg-[#F8FAFC] px-3 text-sm text-[#0F172A] outline-none ${
+                    errors.username ? "border-[#EF4444] text-[#B91C1C]" : "border-[#CBD5E1] focus:border-[#60A5FA]"
+                  }`}
+                  placeholder="用户名"
+                  {...register("username")}
+                />
+                {errors.username ? <p className="mt-1 text-[11px] text-[#DC2626]">{errors.username.message}</p> : null}
+              </div>
 
-              <label className="mt-2 text-sm font-medium text-[var(--text-secondary)]" htmlFor="password">
-                {t("auth.password")}
-              </label>
-              <TextInput
-                id="password"
-                invalid={Boolean(errors.password)}
-                type="password"
-                {...register("password")}
-                placeholder={t("auth.passwordPlaceholder")}
-              />
-              {errors.password ? <FieldError>{errors.password.message}</FieldError> : null}
+              <div>
+                <input
+                  className={`h-12 w-full rounded-[10px] border bg-[#F8FAFC] px-3 text-sm text-[#0F172A] outline-none ${
+                    errors.password ? "border-[#EF4444] text-[#B91C1C]" : "border-[#CBD5E1] focus:border-[#60A5FA]"
+                  }`}
+                  placeholder="密码"
+                  type="password"
+                  {...register("password")}
+                />
+                {errors.password ? <p className="mt-1 text-[11px] text-[#DC2626]">{errors.password.message}</p> : null}
+              </div>
 
-              {loginMutation.isError ? <FormError>{t("auth.loginFailed")}</FormError> : null}
-
-              <PrimaryButton className="mt-3" disabled={loginMutation.isPending} type="submit">
-                {loginMutation.isPending ? t("auth.loggingIn") : t("auth.login")}
-              </PrimaryButton>
+              <button
+                className="inline-flex h-12 w-full items-center justify-center rounded-[10px] bg-[#2563EB] text-[15px] font-semibold text-white transition hover:bg-[#1D4ED8] disabled:opacity-60"
+                disabled={loginMutation.isPending}
+                type="submit"
+              >
+                {loginMutation.isPending ? "登录中..." : "登录"}
+              </button>
             </form>
 
-            <p className="mt-5 text-sm text-[var(--text-secondary)]">
-              {t("auth.noAccount")} <Link to="/register">{t("auth.goRegister")}</Link>
+            <p className="mt-3 text-[13px] text-[#475569]">
+              还没有账号？
+              <Link className="ml-1 text-[#1D4ED8] hover:underline" to="/register">
+                去注册
+              </Link>
             </p>
           </section>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

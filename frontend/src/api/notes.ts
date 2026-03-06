@@ -83,6 +83,11 @@ export async function createNote(payload: CreateNotePayload) {
   return response.data;
 }
 
+export async function getNote(noteId: number) {
+  const response = await api.get<Note>(`/notes/${noteId}`);
+  return response.data;
+}
+
 export async function updateNote(noteId: number, payload: UpdateNotePayload) {
   const response = await api.put<Note>(`/notes/${noteId}`, payload);
   return response.data;
