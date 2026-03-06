@@ -1,10 +1,26 @@
 import { ComponentPropsWithoutRef } from "react";
 
-type CardProps = ComponentPropsWithoutRef<"div">;
+type CardTone = "default" | "muted" | "elevated";
 
-const baseClassName = "rounded-2xl border border-surface-line bg-white";
+type CardProps = ComponentPropsWithoutRef<"div"> & {
+  tone?: CardTone;
+};
 
-export function Card({ className, ...props }: CardProps) {
-  const mergedClassName = className ? `${baseClassName} ${className}` : baseClassName;
+function toneClassName(tone: CardTone): string {
+  switch (tone) {
+    case "muted":
+      return "bg-[var(--bg-panel-muted)]";
+    case "elevated":
+      return "bg-[var(--bg-panel)] shadow-[var(--shadow-md)]";
+    case "default":
+    default:
+      return "bg-[var(--bg-panel)] shadow-[var(--shadow-sm)]";
+  }
+}
+
+const baseClassName = "rounded-[var(--radius-lg)] border border-[var(--line-soft)]";
+
+export function Card({ className, tone = "default", ...props }: CardProps) {
+  const mergedClassName = [baseClassName, toneClassName(tone), className].filter(Boolean).join(" ");
   return <div className={mergedClassName} {...props} />;
 }

@@ -6,38 +6,111 @@
 
 :root {
   color-scheme: light;
+
+  --bg-canvas: #eef4f8;
+  --bg-app: #f7fafc;
+  --bg-panel: #ffffff;
+  --bg-panel-muted: #f3f8fc;
+  --bg-rail: #eff5f9;
+
+  --text-primary: #10243a;
+  --text-secondary: #385268;
+  --text-muted: #6b8397;
+
+  --line-soft: #d7e4ef;
+  --line-strong: #c3d6e6;
+
+  --brand-50: #ecf8ff;
+  --brand-100: #d4efff;
+  --brand-300: #7bcdf2;
+  --brand-500: #1693c7;
+  --brand-600: #1178a8;
+  --brand-700: #0e5f86;
+
+  --danger-100: #ffe4e8;
+  --danger-600: #be123c;
+
+  --ok-100: #dcfce7;
+  --ok-600: #166534;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  --shadow-sm: 0 4px 14px rgba(16, 36, 58, 0.08);
+  --shadow-md: 0 8px 26px rgba(16, 36, 58, 0.11);
+  --shadow-lg: 0 18px 45px rgba(16, 36, 58, 0.14);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  min-height: 100vh;
   font-family: "Space Grotesk", "Noto Sans SC", sans-serif;
-  color: #0f172a;
-  background: radial-gradient(circle at 20% 20%, #dbeafe 0%, #f8fafc 40%, #e2e8f0 100%);
+  color: var(--text-primary);
+  background:
+    radial-gradient(circle at 10% 5%, #dff3ff 0%, transparent 36%),
+    radial-gradient(circle at 90% 90%, #d6f0ff 0%, transparent 34%),
+    linear-gradient(180deg, #f2f8fc 0%, #eaf2f8 100%);
 }
 
 a {
-  color: #0f172a;
-  font-weight: 700;
+  color: var(--brand-700);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+a:hover {
   text-decoration: underline;
 }
 
 .memo-layout {
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
-  min-height: 100vh;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 1rem;
+  min-height: calc(100vh - 2rem);
+  width: min(1320px, calc(100vw - 2rem));
+  margin: 1rem auto;
 }
 
 .memo-menu-wrap {
   position: relative;
 }
 
+.surface-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-lg);
+}
+
+.surface-panel-muted {
+  background: var(--bg-panel-muted);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 1024px) {
+  .memo-layout {
+    width: calc(100vw - 1rem);
+    margin: 0.5rem auto;
+    gap: 0.75rem;
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
   .memo-layout {
     grid-template-columns: 1fr;
+    min-height: auto;
   }
 }

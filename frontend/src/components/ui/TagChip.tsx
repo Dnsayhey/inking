@@ -14,16 +14,17 @@ type TagChipProps = {
 function variantClassName(variant: TagChipVariant): string {
   switch (variant) {
     case "filterSelected":
-      return "border-blue-700 bg-blue-700 text-white";
+      return "border-[var(--brand-600)] bg-[var(--brand-600)] text-white";
     case "muted":
-      return "border-slate-200 bg-slate-100 text-slate-700";
+      return "border-[var(--line-soft)] bg-slate-100 text-[var(--text-secondary)]";
     case "filter":
     default:
-      return "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300";
+      return "border-[var(--line-strong)] bg-[var(--brand-50)] text-[var(--brand-700)] hover:border-[var(--brand-300)]";
   }
 }
 
-const baseClassName = "rounded-full border px-2.5 py-1 text-xs font-semibold transition";
+const baseClassName =
+  "rounded-full border px-2.5 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-300)]";
 
 function hexToRgba(hex: string, alpha: number): string | null {
   const raw = hex.trim().replace("#", "");
@@ -55,5 +56,9 @@ export function TagChip(props: TagChipProps) {
     );
   }
 
-  return <span className={mergedClassName} style={customStyle}>{props.children}</span>;
+  return (
+    <span className={mergedClassName} style={customStyle}>
+      {props.children}
+    </span>
+  );
 }

@@ -14,6 +14,10 @@ const en = {
   auth: {
     welcomeBack: "Welcome back",
     createAccount: "Create account",
+    heroLoginDesc: "Keep your thoughts organized with fast capture, clean tags, and lightweight reminders.",
+    heroRegisterDesc: "One account for quick notes, archived memory, and day-by-day reminder tracking.",
+    heroFootnote: "Desktop-first workspace, mobile-friendly notes.",
+    heroRegisterFootnote: "Fast setup, clean defaults, no extra noise.",
     username: "Username",
     password: "Password",
     confirmPassword: "Confirm password",

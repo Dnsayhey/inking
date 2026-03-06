@@ -14,6 +14,10 @@ const zhCN = {
   auth: {
     welcomeBack: "欢迎回来",
     createAccount: "创建新账号",
+    heroLoginDesc: "快速记录、清晰标签、轻量提醒，让想法始终有序。",
+    heroRegisterDesc: "一个账号即可管理笔记、归档内容与每日提醒。",
+    heroFootnote: "桌面优先体验，移动端保持轻量可用。",
+    heroRegisterFootnote: "快速注册，默认配置简洁无干扰。",
     username: "用户名",
     password: "密码",
     confirmPassword: "确认密码",

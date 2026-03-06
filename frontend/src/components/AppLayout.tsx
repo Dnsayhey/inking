@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ChevronRight, User } from "lucide-react";
+import { ChevronRight, Globe, LogOut, PackageOpen, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet, useNavigate } from "react-router-dom";
@@ -52,45 +52,49 @@ export function AppLayout() {
     }
   }, [isMenuOpen]);
 
+  const userInitial = (meQuery.data?.username?.[0] ?? "U").toUpperCase();
+
   return (
-    <div className="grid min-h-screen items-start md:grid-cols-[72px_minmax(0,1fr)]">
-      <aside className="sticky top-0 flex h-screen flex-col justify-between border-r border-surface-line bg-surface-rail px-2.5 py-3 max-md:static max-md:h-auto max-md:min-h-0 max-md:flex-row max-md:items-center max-md:border-b max-md:border-r-0 max-md:px-3 max-md:py-2">
-        <div className="relative flex justify-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-slate-900 text-base font-bold text-white">
-            {(meQuery.data?.username?.[0] ?? "U").toUpperCase()}
-          </div>
+    <div className="grid min-h-screen md:grid-cols-[86px_minmax(0,1fr)]">
+      <aside className="flex border-b border-[var(--line-soft)] bg-[var(--bg-rail)] px-3 py-3 md:sticky md:top-0 md:h-screen md:flex-col md:justify-between md:border-b-0 md:border-r">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[var(--radius-lg)] border border-[var(--line-strong)] bg-white text-lg font-bold text-[var(--brand-700)] shadow-sm">
+          {userInitial}
         </div>
-        <div className="relative flex justify-center" ref={menuRef}>
+
+        <div className="relative ml-auto md:ml-0 md:flex md:justify-center" ref={menuRef}>
           {isMenuOpen ? (
-            <div className="absolute bottom-0 left-11 min-w-[120px] rounded-xl border border-surface-line bg-white p-1.5 shadow-elev-md max-md:bottom-[42px] max-md:left-0">
+            <div className="absolute bottom-12 right-0 z-40 min-w-[188px] rounded-[var(--radius-md)] border border-[var(--line-soft)] bg-white p-1.5 shadow-[var(--shadow-md)] md:bottom-0 md:left-14 md:right-auto">
               <button
-                className="w-full rounded-lg bg-white px-2 py-2 text-left text-sm text-slate-900 hover:bg-slate-100"
+                className="flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm text-[var(--text-primary)] transition hover:bg-slate-100"
                 onClick={() => {
                   setIsMenuOpen(false);
                   navigate("/?view=archived");
                 }}
                 type="button"
               >
-                {t("app.archived")}
+                <PackageOpen className="h-4 w-4 text-[var(--text-muted)]" />
+                <span>{t("app.archived")}</span>
               </button>
-              <div
-                className="relative"
-                onMouseEnter={() => setIsLanguageMenuOpen(true)}
-                onMouseLeave={() => setIsLanguageMenuOpen(false)}
-              >
+
+              <div className="relative" onMouseEnter={() => setIsLanguageMenuOpen(true)} onMouseLeave={() => setIsLanguageMenuOpen(false)}>
                 <button
-                  className="flex w-full items-center justify-between rounded-lg bg-white px-2 py-2 text-left text-sm text-slate-900 hover:bg-slate-100"
+                  className="flex w-full items-center justify-between rounded-[10px] px-2.5 py-2 text-left text-sm text-[var(--text-primary)] transition hover:bg-slate-100"
                   onClick={() => setIsLanguageMenuOpen((prev) => !prev)}
                   type="button"
                 >
-                  <span>{t("common.language")}</span>
-                  <ChevronRight className="h-4 w-4 text-slate-500" />
+                  <span className="inline-flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-[var(--text-muted)]" />
+                    {t("common.language")}
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
                 </button>
                 {isLanguageMenuOpen ? (
-                  <div className="absolute bottom-0 left-full z-30 flex max-h-[220px] min-w-[168px] flex-col gap-1 overflow-y-auto rounded-lg border border-surface-line bg-white p-1 shadow-elev-sm">
+                  <div className="absolute bottom-0 right-full z-40 mr-1 flex min-w-[164px] flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--line-soft)] bg-white p-1.5 shadow-[var(--shadow-md)] md:left-full md:right-auto md:ml-1 md:mr-0">
                     <button
-                      className={`rounded-md px-2 py-1.5 text-left text-sm ${
-                        languagePreference === "system" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
+                      className={`rounded-[10px] px-2 py-1.5 text-left text-sm ${
+                        languagePreference === "system"
+                          ? "bg-[var(--brand-600)] text-white"
+                          : "text-[var(--text-secondary)] hover:bg-slate-100"
                       }`}
                       onClick={() => {
                         setLanguagePreference("system");
@@ -102,8 +106,10 @@ export function AppLayout() {
                       {t("common.followSystem")}
                     </button>
                     <button
-                      className={`rounded-md px-2 py-1.5 text-left text-sm ${
-                        languagePreference === "zh-CN" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
+                      className={`rounded-[10px] px-2 py-1.5 text-left text-sm ${
+                        languagePreference === "zh-CN"
+                          ? "bg-[var(--brand-600)] text-white"
+                          : "text-[var(--text-secondary)] hover:bg-slate-100"
                       }`}
                       onClick={() => {
                         setLanguagePreference("zh-CN");
@@ -115,8 +121,10 @@ export function AppLayout() {
                       {t("common.chinese")}
                     </button>
                     <button
-                      className={`rounded-md px-2 py-1.5 text-left text-sm ${
-                        languagePreference === "en" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
+                      className={`rounded-[10px] px-2 py-1.5 text-left text-sm ${
+                        languagePreference === "en"
+                          ? "bg-[var(--brand-600)] text-white"
+                          : "text-[var(--text-secondary)] hover:bg-slate-100"
                       }`}
                       onClick={() => {
                         setLanguagePreference("en");
@@ -130,26 +138,29 @@ export function AppLayout() {
                   </div>
                 ) : null}
               </div>
+
               <button
-                className="w-full rounded-lg bg-white px-2 py-2 text-left text-sm text-slate-900 hover:bg-slate-100"
+                className="flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
                 disabled={logoutMutation.isPending}
                 onClick={() => logoutMutation.mutate()}
                 type="button"
               >
+                <LogOut className="h-4 w-4" />
                 {logoutMutation.isPending ? t("app.signingOut") : t("app.signOut")}
               </button>
             </div>
           ) : null}
+
           <button
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white"
+            className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-[var(--line-strong)] bg-white text-[var(--text-secondary)] shadow-sm transition hover:border-[var(--brand-300)] hover:text-[var(--text-primary)]"
             onClick={() => setIsMenuOpen((prev) => !prev)}
             type="button"
           >
-            <User className="h-[18px] w-[18px] text-slate-500" strokeWidth={2} />
+            <User className="h-[18px] w-[18px]" strokeWidth={2} />
           </button>
         </div>
       </aside>
-      <main>
+      <main className="bg-[var(--bg-app)]">
         <Outlet />
       </main>
     </div>
