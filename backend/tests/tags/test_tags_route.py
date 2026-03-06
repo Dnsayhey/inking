@@ -96,3 +96,44 @@ def test_tag_routes_create_list_update_delete():
     assert r.status_code == 404
 
     app.dependency_overrides.clear()
+
+
+def test_tag_routes_validate_payload():
+    fake_service = FakeTagService()
+    app.dependency_overrides[get_tag_service] = lambda: fake_service
+    app.dependency_overrides[get_current_user] = lambda: FakeUser(user_id=99)
+    client = TestClient(app)
+
+    r = client.post("/tags", json={"name": "", "color": "#abcdef"})
+    assert r.status_code == 422
+
+    r = client.post("/tags", json={"name": "a" * 65, "color": "#abcdef"})
+    assert r.status_code == 422
+
+    r = client.post("/tags", json={"name": "valid", "color": "x" * 33})
+    assert r.status_code == 422
+
+    r = client.patch("/tags/1", json={"name": ""})
+    assert r.status_code == 422
+
+    r = client.patch("/tags/1", json={"color": "x" * 33})
+    assert r.status_code == 422
+
+    app.dependency_overrides.clear()
+
+
+def test_tag_routes_require_bearer_token():
+    app.dependency_overrides.clear()
+    client = TestClient(app)
+
+    r = client.get("/tags")
+    assert r.status_code == 401
+
+    r = client.post("/tags", json={"name": "new", "color": "#abcdef"})
+    assert r.status_code == 401
+
+    r = client.patch("/tags/1", json={"name": "updated"})
+    assert r.status_code == 401
+
+    r = client.delete("/tags/1")
+    assert r.status_code == 401

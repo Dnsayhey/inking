@@ -92,3 +92,26 @@ def test_notes_route_requires_bearer_token():
 
     r = client.get("/notes")
     assert r.status_code == 401
+
+
+def test_auth_routes_validate_payload_and_me_requires_token():
+    app.dependency_overrides.clear()
+    client = TestClient(app)
+
+    r = client.post("/auth/register", json={"username": "ab", "password": "password123"})
+    assert r.status_code == 422
+
+    r = client.post("/auth/register", json={"username": "alice", "password": "short"})
+    assert r.status_code == 422
+
+    r = client.post("/auth/login", json={"username": "alice"})
+    assert r.status_code == 422
+
+    r = client.post("/auth/refresh", json={})
+    assert r.status_code == 422
+
+    r = client.post("/auth/logout", json={})
+    assert r.status_code == 422
+
+    r = client.get("/auth/me")
+    assert r.status_code == 401

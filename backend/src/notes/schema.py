@@ -12,6 +12,7 @@ class TagRead(BaseModel):
 
 
 class NoteBase(BaseModel):
+    title: Annotated[str | None, Field(default=None, min_length=1, max_length=255, description="笔记标题")]
     content: Annotated[str, Field(..., min_length=1, description="笔记内容")]
 
 
@@ -20,6 +21,7 @@ class NoteCreate(NoteBase):
 
 
 class NoteUpdate(BaseModel):
+    title: Annotated[str | None, Field(None, min_length=1, max_length=255, description="笔记标题")]
     content: Annotated[str | None, Field(None, min_length=1, description="笔记内容")]
 
 

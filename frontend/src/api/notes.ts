@@ -8,6 +8,7 @@ export type NoteTag = {
 
 export type Note = {
   id: number;
+  title: string | null;
   content: string;
   created_at: string;
   updated_at: string;
@@ -47,10 +48,12 @@ export type NoteReminderPayload = {
 };
 
 export type CreateNotePayload = {
+  title?: string | null;
   content: string;
 };
 
 export type UpdateNotePayload = {
+  title?: string | null;
   content?: string;
 };
 

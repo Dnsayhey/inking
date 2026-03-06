@@ -154,3 +154,107 @@ def test_reminder_routes_crud_and_validation():
     assert r.status_code == 404
 
     app.dependency_overrides.clear()
+
+
+def test_reminder_routes_note_not_found_branches():
+    fake_service = FakeReminderService()
+    app.dependency_overrides[get_note_service] = lambda: fake_service
+    app.dependency_overrides[get_current_user] = lambda: FakeUser(user_id=99)
+    client = TestClient(app)
+
+    r = client.post(
+        "/notes/999/reminders",
+        json={
+            "title": "friend birthday",
+            "calendar_type": "solar",
+            "month": 3,
+            "day": 18,
+            "is_leap_month": False,
+            "time_of_day": "09:00:00",
+            "timezone": "Asia/Shanghai",
+            "remind_before_days": 0,
+            "is_active": True,
+        },
+    )
+    assert r.status_code == 404
+
+    r = client.patch("/notes/999/reminders/1", json={"title": "missing-note"})
+    assert r.status_code == 404
+
+    r = client.delete("/notes/999/reminders/1")
+    assert r.status_code == 404
+
+    app.dependency_overrides.clear()
+
+
+def test_reminder_routes_validate_payload():
+    fake_service = FakeReminderService()
+    app.dependency_overrides[get_note_service] = lambda: fake_service
+    app.dependency_overrides[get_current_user] = lambda: FakeUser(user_id=99)
+    client = TestClient(app)
+
+    r = client.post(
+        "/notes/1/reminders",
+        json={
+            "calendar_type": "solar",
+            "month": 3,
+            "day": 18,
+            "is_leap_month": False,
+            "time_of_day": "09:00:00",
+            "timezone": "Asia/Shanghai",
+            "remind_before_days": 0,
+            "is_active": True,
+        },
+    )
+    assert r.status_code == 422
+
+    r = client.post(
+        "/notes/1/reminders",
+        json={
+            "title": "friend birthday",
+            "calendar_type": "solar",
+            "month": 13,
+            "day": 18,
+            "is_leap_month": False,
+            "time_of_day": "09:00:00",
+            "timezone": "Asia/Shanghai",
+            "remind_before_days": 0,
+            "is_active": True,
+        },
+    )
+    assert r.status_code == 422
+
+    r = client.patch("/notes/1/reminders/1", json={"remind_before_days": -1})
+    assert r.status_code == 422
+
+    app.dependency_overrides.clear()
+
+
+def test_reminder_routes_require_bearer_token():
+    app.dependency_overrides.clear()
+    client = TestClient(app)
+
+    r = client.get("/notes/1/reminders")
+    assert r.status_code == 401
+
+    r = client.post(
+        "/notes/1/reminders",
+        json={
+            "title": "friend birthday",
+            "calendar_type": "solar",
+            "month": 3,
+            "day": 18,
+            "is_leap_month": False,
+            "time_of_day": "09:00:00",
+            "timezone": "Asia/Shanghai",
+            "remind_before_days": 0,
+            "is_active": True,
+        },
+    )
+    assert r.status_code == 401
+
+    r = client.patch("/notes/1/reminders/1", json={"title": "updated"})
+    assert r.status_code == 401
+
+    r = client.delete("/notes/1/reminders/1")
+    assert r.status_code == 401

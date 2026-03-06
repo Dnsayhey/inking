@@ -54,6 +54,19 @@ async def test_get_all_returns_only_current_user_notes(session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_note_title_is_optional_and_can_be_updated(session: AsyncSession):
+    repo = NoteRepository(session)
+    user = await create_user(session, "alice")
+
+    note = await repo.create({"title": "my-title", "content": "my-content"}, user.id)
+    assert note.title == "my-title"
+
+    updated = await repo.update({"title": None}, note.id, user.id)
+    assert updated is not None
+    assert updated.title is None
+
+
+@pytest.mark.asyncio
 async def test_cross_user_get_update_delete_are_blocked(session: AsyncSession):
     repo = NoteRepository(session)
     user_a = await create_user(session, "alice")
