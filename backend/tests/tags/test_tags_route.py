@@ -56,6 +56,13 @@ class FakeTagService:
     async def delete_tag(self, tag_id: int, user_id: int):
         return tag_id in self.tags
 
+    async def merge_tag(self, user_id: int, data):
+        if data.from_tag_id not in self.tags or data.to_tag_id not in self.tags:
+            return None
+        merged = self.tags[data.to_tag_id].copy()
+        self.tags.pop(data.from_tag_id, None)
+        return merged
+
 
 def test_tag_routes_create_list_update_delete():
     fake_service = FakeTagService()
@@ -98,6 +105,26 @@ def test_tag_routes_create_list_update_delete():
     app.dependency_overrides.clear()
 
 
+def test_tag_merge_route_success_and_error_branches():
+    fake_service = FakeTagService()
+    app.dependency_overrides[get_tag_service] = lambda: fake_service
+    app.dependency_overrides[get_current_user] = lambda: FakeUser(user_id=99)
+    client = TestClient(app)
+
+    r = client.post("/tags/merge", json={"from_tag_id": 1, "to_tag_id": 2})
+    assert r.status_code == 200
+    assert r.json()["name"] == "life"
+    assert r.json()["id"] == 2
+
+    r = client.post("/tags/merge", json={"from_tag_id": 999, "to_tag_id": 2})
+    assert r.status_code == 404
+
+    r = client.post("/tags/merge", json={"from_tag_id": 2, "to_tag_id": 999})
+    assert r.status_code == 404
+
+    app.dependency_overrides.clear()
+
+
 def test_tag_routes_validate_payload():
     fake_service = FakeTagService()
     app.dependency_overrides[get_tag_service] = lambda: fake_service
@@ -105,6 +132,9 @@ def test_tag_routes_validate_payload():
     client = TestClient(app)
 
     r = client.post("/tags", json={"name": "", "color": "#abcdef"})
+    assert r.status_code == 422
+
+    r = client.post("/tags", json={"name": "   ", "color": "#abcdef"})
     assert r.status_code == 422
 
     r = client.post("/tags", json={"name": "a" * 65, "color": "#abcdef"})
@@ -116,7 +146,19 @@ def test_tag_routes_validate_payload():
     r = client.patch("/tags/1", json={"name": ""})
     assert r.status_code == 422
 
+    r = client.patch("/tags/1", json={"name": "   "})
+    assert r.status_code == 422
+
     r = client.patch("/tags/1", json={"color": "x" * 33})
+    assert r.status_code == 422
+
+    r = client.post("/tags/merge", json={"from_tag_id": 0, "to_tag_id": 1})
+    assert r.status_code == 422
+
+    r = client.post("/tags/merge", json={"from_tag_id": 1, "to_tag_id": 0})
+    assert r.status_code == 422
+
+    r = client.post("/tags/merge", json={"from_tag_id": 1, "to_tag_id": 1})
     assert r.status_code == 422
 
     app.dependency_overrides.clear()
@@ -136,4 +178,7 @@ def test_tag_routes_require_bearer_token():
     assert r.status_code == 401
 
     r = client.delete("/tags/1")
+    assert r.status_code == 401
+
+    r = client.post("/tags/merge", json={"from_tag_id": 1, "to_tag_id": 2})
     assert r.status_code == 401

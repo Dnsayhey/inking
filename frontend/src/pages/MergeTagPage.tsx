@@ -1,23 +1,22 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { listTags } from "../api/tags";
+import { listTags, mergeTags } from "../api/tags";
 import { useToast } from "../components/ui";
-import { TAG_COLORS, TagColorPicker } from "./tags-shared";
 
 export function MergeTagPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const [targetName, setTargetName] = useState("");
   const [fromTagId, setFromTagId] = useState<number | null>(() => {
     const raw = searchParams.get("fromTagId");
     if (!raw) return null;
     const parsed = Number(raw);
-    return Number.isInteger(parsed) ? parsed : null;
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   });
-  const [color, setColor] = useState<string | null>(TAG_COLORS[0]);
+  const [toTagId, setToTagId] = useState<number | null>(null);
 
   const tagsQuery = useQuery({
     queryKey: ["tags"],
@@ -25,7 +24,31 @@ export function MergeTagPage() {
   });
   const tags = tagsQuery.data ?? [];
 
+  const mergeMutation = useMutation({
+    mutationFn: async () => {
+      if (!fromTagId || !toTagId) {
+        throw new Error("invalid-merge-payload");
+      }
+      return mergeTags({ from_tag_id: fromTagId, to_tag_id: toTagId });
+    },
+    onSuccess: () => {
+      showToast("标签合并成功", "success");
+      void queryClient.invalidateQueries({ queryKey: ["tags"] });
+      void queryClient.invalidateQueries({ queryKey: ["notes"] });
+      navigate("/tags", { replace: true });
+    },
+    onError: () => showToast("标签合并失败，请稍后重试", "error"),
+  });
+
+  const toTagOptions = useMemo(() => {
+    if (!fromTagId) return tags;
+    return tags.filter((item) => item.id !== fromTagId);
+  }, [tags, fromTagId]);
+
   const fromTag = useMemo(() => tags.find((item) => item.id === fromTagId) ?? null, [tags, fromTagId]);
+  const toTag = useMemo(() => tags.find((item) => item.id === toTagId) ?? null, [tags, toTagId]);
+
+  const canSubmit = Boolean(fromTag && toTag && fromTag.id !== toTag.id);
 
   return (
     <div className="flex h-full flex-col gap-5 bg-[#F8FAFC] p-6">
@@ -41,22 +64,23 @@ export function MergeTagPage() {
       </header>
 
       <section className="rounded-[12px] border border-[#E2E8F0] bg-white p-4">
-        <div className="space-y-[14px]">
-          <div className="space-y-1.5">
-            <p className="text-[13px] font-semibold text-[#475569]">保持标签名</p>
-            <input
-              className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-[10px] text-[13px] outline-none focus:border-[#60A5FA]"
-              onChange={(event) => setTargetName(event.target.value)}
-              placeholder="例如：学习"
-              value={targetName}
-            />
+        {tags.length < 2 ? (
+          <div className="rounded-[10px] border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">
+            至少需要两个标签才能执行合并。
           </div>
-
+        ) : null}
+        <div className="space-y-[14px]">
           <div className="space-y-1.5">
             <p className="text-[13px] font-semibold text-[#475569]">合并来源</p>
             <select
               className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-[10px] text-[13px] outline-none focus:border-[#60A5FA]"
-              onChange={(event) => setFromTagId(Number(event.target.value))}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                setFromTagId(Number.isInteger(value) && value > 0 ? value : null);
+                if (toTagId === value) {
+                  setToTagId(null);
+                }
+              }}
               value={fromTagId ?? ""}
             >
               <option value="" disabled>
@@ -71,13 +95,30 @@ export function MergeTagPage() {
           </div>
 
           <div className="space-y-1.5">
-            <p className="text-[13px] font-semibold text-[#475569]">颜色</p>
-            <TagColorPicker onChange={setColor} value={color} />
+            <p className="text-[13px] font-semibold text-[#475569]">合并目标</p>
+            <select
+              className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-[10px] text-[13px] outline-none focus:border-[#60A5FA]"
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                setToTagId(Number.isInteger(value) && value > 0 ? value : null);
+              }}
+              value={toTagId ?? ""}
+            >
+              <option value="" disabled>
+                请选择
+              </option>
+              {toTagOptions.map((tag) => (
+                <option key={tag.id} value={tag.id}>
+                  #{tag.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="rounded-[10px] border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs text-[#B91C1C]">
-            合并功能后端接口尚未就绪，先于前端保留交互占位。
-            {fromTag ? ` 当前来源：#${fromTag.name}` : ""}
+            该操作会将来源标签的关联笔记迁移到目标标签，并删除来源标签。
+            {fromTag ? ` 来源：#${fromTag.name}` : ""}
+            {toTag ? `，目标：#${toTag.name}` : ""}
           </div>
         </div>
 
@@ -91,13 +132,11 @@ export function MergeTagPage() {
           </button>
           <button
             className="inline-flex h-10 w-24 items-center justify-center rounded-[10px] bg-[#DC2626] text-sm font-semibold text-white transition hover:bg-[#B91C1C] disabled:opacity-60"
-            disabled={!targetName.trim() || !fromTagId}
-            onClick={() =>
-              showToast("后端 merge_tag 接口完成后即可接入此操作", "info")
-            }
+            disabled={!canSubmit || tags.length < 2 || mergeMutation.isPending}
+            onClick={() => mergeMutation.mutate()}
             type="button"
           >
-            确认合并
+            {mergeMutation.isPending ? "合并中..." : "确认合并"}
           </button>
         </div>
       </section>

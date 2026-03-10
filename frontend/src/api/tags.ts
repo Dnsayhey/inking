@@ -18,6 +18,11 @@ export type UpdateTagPayload = {
   color?: string | null;
 };
 
+export type MergeTagPayload = {
+  from_tag_id: number;
+  to_tag_id: number;
+};
+
 export async function listTags(search?: string) {
   const response = await api.get<Tag[]>("/tags", {
     params: search ? { search } : undefined,
@@ -37,4 +42,9 @@ export async function updateTag(tagId: number, payload: UpdateTagPayload) {
 
 export async function deleteTag(tagId: number) {
   await api.delete(`/tags/${tagId}`);
+}
+
+export async function mergeTags(payload: MergeTagPayload) {
+  const response = await api.post<Tag>("/tags/merge", payload);
+  return response.data;
 }

@@ -316,7 +316,19 @@ def test_note_routes_validate_payload():
     r = client.post("/notes", json={"content": ""})
     assert r.status_code == 422
 
+    r = client.post("/notes", json={"content": "   "})
+    assert r.status_code == 422
+
+    r = client.post("/notes", json={"title": "   ", "content": "ok"})
+    assert r.status_code == 422
+
     r = client.put("/notes/1", json={"content": ""})
+    assert r.status_code == 422
+
+    r = client.put("/notes/1", json={"content": "   "})
+    assert r.status_code == 422
+
+    r = client.put("/notes/1", json={"title": "   "})
     assert r.status_code == 422
 
     r = client.put("/notes/1", json={"title": "a" * 256})

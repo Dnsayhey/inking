@@ -99,12 +99,18 @@ export function NewNotePage() {
       .slice(0, 6);
   }, [tagInput, tags, selectedTags]);
 
+  const canSave = content.trim().length > 0;
+
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const normalizedContent = content.trim();
+      if (!normalizedContent) {
+        throw new Error("content_required");
+      }
       if (isEditMode && parsedEditNoteId !== null) {
         await updateNote(parsedEditNoteId, {
           title: title.trim() || null,
-          content: content.trim() || " ",
+          content: normalizedContent,
         });
         await setNoteTags(
           parsedEditNoteId,
@@ -114,7 +120,7 @@ export function NewNotePage() {
       }
       const created = await createNote({
         title: title.trim() || null,
-        content: content.trim() || " ",
+        content: normalizedContent,
       });
       if (selectedTags.length > 0) {
         await setNoteTags(
@@ -297,7 +303,7 @@ export function NewNotePage() {
             </button>
             <button
               className="inline-flex h-10 w-24 items-center justify-center rounded-[10px] bg-[#2563EB] text-sm font-semibold text-white transition hover:bg-[#1D4ED8] disabled:opacity-60"
-              disabled={saveMutation.isPending}
+              disabled={saveMutation.isPending || !canSave}
               onClick={() => saveMutation.mutate()}
               type="button"
             >

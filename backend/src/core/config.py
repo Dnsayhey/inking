@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import computed_field
+from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
 
         return options
     
-    jwt_secret: str = "uyb*&TGBB^F7fb88g7"
+    jwt_secret: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
@@ -84,6 +84,14 @@ class Settings(BaseSettings):
     @property
     def frontend_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.frontend_origins.split(",") if origin.strip()]
+
+    @model_validator(mode="after")
+    def validate_jwt_secret(self) -> "Settings":
+        secret = self.jwt_secret.strip()
+        if len(secret.encode("utf-8")) < 32:
+            raise ValueError("JWT_SECRET 至少需要 32 字节长度")
+        self.jwt_secret = secret
+        return self
 
 
 @lru_cache

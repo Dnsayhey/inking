@@ -47,7 +47,7 @@ uv run uvicorn src.main:app --reload
 
 ## 认证配置
 
-- `JWT_SECRET`：JWT 签名密钥（生产环境必须替换为高强度随机值）
+- `JWT_SECRET`：JWT 签名密钥（必须是至少 32 字节的随机字符串）。可用 `openssl rand -hex 32` 生成。
 - `JWT_ALGORITHM`：签名算法，默认 `HS256`
 - `ACCESS_TOKEN_EXPIRE_MINUTES`：访问令牌有效期（默认 15 分钟）
 - `REFRESH_TOKEN_EXPIRE_DAYS`：刷新令牌有效期（默认 7 天）
@@ -83,6 +83,7 @@ uv run python -m alembic downgrade -1
 - `GET /auth/me`：获取当前登录用户信息
 - `POST /tags`：创建标签
 - `GET /tags`：获取标签列表
+- `POST /tags/merge`：将来源标签合并到目标标签（`from_tag_id` -> `to_tag_id`）
 - `PATCH /tags/{tag_id}`：更新标签
 - `DELETE /tags/{tag_id}`：删除标签
 - `POST /notes`：创建笔记

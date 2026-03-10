@@ -2,7 +2,7 @@ from sqlalchemy.exc import IntegrityError
 
 from src.tags.model import Tag
 from src.tags.repository import TagRepository
-from src.tags.schema import TagCreate, TagUpdate
+from src.tags.schema import TagCreate, TagMergeRequest, TagUpdate
 
 
 class TagService:
@@ -12,6 +12,8 @@ class TagService:
     @staticmethod
     def normalize_name(raw_name: str) -> tuple[str, str]:
         display_name = raw_name.strip()
+        if not display_name:
+            raise ValueError("标签名称不能为空")
         return display_name, display_name.casefold()
 
     async def create_tag(self, user_id: int, data: TagCreate) -> Tag:
@@ -43,3 +45,12 @@ class TagService:
 
     async def delete_tag(self, tag_id: int, user_id: int) -> bool:
         return await self.repository.delete(tag_id, user_id)
+
+    async def merge_tag(self, user_id: int, data: TagMergeRequest) -> Tag | None:
+        if data.from_tag_id == data.to_tag_id:
+            raise ValueError("来源标签和目标标签不能相同")
+        return await self.repository.merge_tags(
+            user_id=user_id,
+            from_tag_id=data.from_tag_id,
+            to_tag_id=data.to_tag_id,
+        )

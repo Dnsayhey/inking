@@ -1,6 +1,6 @@
 from datetime import datetime, time, timezone
 from typing import Annotated
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 
 class TagRead(BaseModel):
@@ -15,6 +15,11 @@ class NoteBase(BaseModel):
     title: Annotated[str | None, Field(default=None, min_length=1, max_length=255, description="笔记标题")]
     content: Annotated[str, Field(..., min_length=1, description="笔记内容")]
 
+    @field_validator("title", "content", mode="before")
+    @classmethod
+    def strip_text_fields(cls, value: str | None):
+        return value.strip() if isinstance(value, str) else value
+
 
 class NoteCreate(NoteBase):
     pass
@@ -23,6 +28,11 @@ class NoteCreate(NoteBase):
 class NoteUpdate(BaseModel):
     title: Annotated[str | None, Field(None, min_length=1, max_length=255, description="笔记标题")]
     content: Annotated[str | None, Field(None, min_length=1, description="笔记内容")]
+
+    @field_validator("title", "content", mode="before")
+    @classmethod
+    def strip_text_fields(cls, value: str | None):
+        return value.strip() if isinstance(value, str) else value
 
 
 class NoteRead(NoteBase):
