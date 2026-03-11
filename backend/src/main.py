@@ -30,6 +30,7 @@ def _error_payload(code: int, message: str, details=None) -> dict:
     return {
         "code": code,
         "message": message,
+        "data": None,
         "details": details,
     }
 

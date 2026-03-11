@@ -97,14 +97,29 @@ uv run python -m alembic downgrade -1
 `/notes` 路由组已启用 Bearer Token 鉴权，请在请求头中携带：  
 `Authorization: Bearer <access_token>`
 
-## 错误响应约定
+## 响应约定
 
-后端统一返回错误结构：
+后端统一返回结构（成功和失败都使用同一层包裹）：
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {},
+  "details": null
+}
+```
+
+- 成功时 `code = 0`，业务数据放在 `data`
+- 失败时 `code != 0`，`data = null`
+
+错误示例：
 
 ```json
 {
   "code": 1001,
   "message": "用户名或密码错误",
+  "data": null,
   "details": null
 }
 ```
@@ -112,6 +127,7 @@ uv run python -m alembic downgrade -1
 - `code`：业务错误码（稳定，前端建议按此分支）
 - `message`：可读错误信息
 - `details`：扩展字段（如参数校验错误列表）
+- `data`：成功时为业务数据，失败时为 `null`
 
 业务码分段：
 

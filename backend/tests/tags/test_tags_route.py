@@ -76,7 +76,8 @@ def test_tag_routes_create_list_update_delete():
 
     r = client.post("/tags", json={"name": "new", "color": "#abcdef"})
     assert r.status_code == 201
-    assert r.json()["name"] == "new"
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["name"] == "new"
 
     r = client.post("/tags", json={"name": "exists", "color": "#000000"})
     assert r.status_code == 400
@@ -84,16 +85,19 @@ def test_tag_routes_create_list_update_delete():
 
     r = client.get("/tags")
     assert r.status_code == 200
-    assert len(r.json()) == 2
+    assert r.json()["code"] == 0
+    assert len(r.json()["data"]) == 2
 
     r = client.get("/tags", params={"search": "wor"})
     assert r.status_code == 200
-    assert len(r.json()) == 1
-    assert r.json()[0]["name"] == "work"
+    assert r.json()["code"] == 0
+    assert len(r.json()["data"]) == 1
+    assert r.json()["data"][0]["name"] == "work"
 
     r = client.patch("/tags/1", json={"name": "updated", "color": "#999999"})
     assert r.status_code == 200
-    assert r.json()["name"] == "updated"
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["name"] == "updated"
 
     r = client.patch("/tags/1", json={"name": "exists"})
     assert r.status_code == 400
@@ -103,7 +107,9 @@ def test_tag_routes_create_list_update_delete():
     assert r.status_code == 404
 
     r = client.delete("/tags/1")
-    assert r.status_code == 204
+    assert r.status_code == 200
+    assert r.json()["code"] == 0
+    assert r.json()["data"] is None
 
     r = client.delete("/tags/999")
     assert r.status_code == 404
@@ -119,8 +125,9 @@ def test_tag_merge_route_success_and_error_branches():
 
     r = client.post("/tags/merge", json={"from_tag_id": 1, "to_tag_id": 2})
     assert r.status_code == 200
-    assert r.json()["name"] == "life"
-    assert r.json()["id"] == 2
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["name"] == "life"
+    assert r.json()["data"]["id"] == 2
 
     r = client.post("/tags/merge", json={"from_tag_id": 999, "to_tag_id": 2})
     assert r.status_code == 404

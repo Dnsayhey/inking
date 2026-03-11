@@ -102,7 +102,8 @@ def test_reminder_routes_crud_and_validation():
 
     r = client.get("/notes/1/reminders")
     assert r.status_code == 200
-    assert len(r.json()) == 1
+    assert r.json()["code"] == 0
+    assert len(r.json()["data"]) == 1
 
     r = client.get("/notes/999/reminders")
     assert r.status_code == 404
@@ -122,7 +123,8 @@ def test_reminder_routes_crud_and_validation():
         },
     )
     assert r.status_code == 201
-    assert r.json()["calendar_type"] == "lunar"
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["calendar_type"] == "lunar"
 
     r = client.post(
         "/notes/1/reminders",
@@ -142,7 +144,8 @@ def test_reminder_routes_crud_and_validation():
 
     r = client.patch("/notes/1/reminders/1", json={"title": "mom birthday updated", "remind_before_days": 1})
     assert r.status_code == 200
-    assert r.json()["title"] == "mom birthday updated"
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["title"] == "mom birthday updated"
 
     r = client.patch("/notes/1/reminders/1", json={"month": 2, "day": 31})
     assert r.status_code == 400
@@ -152,7 +155,9 @@ def test_reminder_routes_crud_and_validation():
     assert r.status_code == 404
 
     r = client.delete("/notes/1/reminders/1")
-    assert r.status_code == 204
+    assert r.status_code == 200
+    assert r.json()["code"] == 0
+    assert r.json()["data"] is None
 
     r = client.delete("/notes/1/reminders/999")
     assert r.status_code == 404

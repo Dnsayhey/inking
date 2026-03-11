@@ -111,10 +111,11 @@ def test_notes_list_supports_archived_filter_and_query_params():
 
     r = client.get("/notes")
     assert r.status_code == 200
-    assert r.json()[0]["is_archived"] is False
-    assert r.json()[0]["title"] is None
-    assert r.json()[0]["created_at"].endswith("Z")
-    assert r.json()[0]["updated_at"].endswith("Z")
+    assert r.json()["code"] == 0
+    assert r.json()["data"][0]["is_archived"] is False
+    assert r.json()["data"][0]["title"] is None
+    assert r.json()["data"][0]["created_at"].endswith("Z")
+    assert r.json()["data"][0]["updated_at"].endswith("Z")
 
     r = client.get(
         "/notes",
@@ -129,8 +130,9 @@ def test_notes_list_supports_archived_filter_and_query_params():
         },
     )
     assert r.status_code == 200
-    assert r.json()[0]["is_archived"] is True
-    assert r.json()[0]["title"] == "archived-title"
+    assert r.json()["code"] == 0
+    assert r.json()["data"][0]["is_archived"] is True
+    assert r.json()["data"][0]["title"] == "archived-title"
 
     assert fake_service.list_calls[0] == {
         "user_id": 99,
@@ -181,12 +183,13 @@ def test_get_note_allows_archived_notes_and_404_for_missing():
 
     r = client.get("/notes/2")
     assert r.status_code == 200
-    assert r.json()["id"] == 2
-    assert r.json()["title"] == "archived-title"
-    assert r.json()["is_archived"] is True
-    assert r.json()["created_at"].endswith("Z")
-    assert r.json()["updated_at"].endswith("Z")
-    assert r.json()["archived_at"].endswith("Z")
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["id"] == 2
+    assert r.json()["data"]["title"] == "archived-title"
+    assert r.json()["data"]["is_archived"] is True
+    assert r.json()["data"]["created_at"].endswith("Z")
+    assert r.json()["data"]["updated_at"].endswith("Z")
+    assert r.json()["data"]["archived_at"].endswith("Z")
 
     r = client.get("/notes/999")
     assert r.status_code == 404
@@ -202,13 +205,15 @@ def test_create_note_route_supports_optional_title_and_validation():
 
     r = client.post("/notes", json={"content": "no-title"})
     assert r.status_code == 201
-    assert r.json()["title"] is None
-    assert r.json()["content"] == "no-title"
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["title"] is None
+    assert r.json()["data"]["content"] == "no-title"
 
     r = client.post("/notes", json={"title": "hello", "content": "with-title"})
     assert r.status_code == 201
-    assert r.json()["title"] == "hello"
-    assert r.json()["content"] == "with-title"
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["title"] == "hello"
+    assert r.json()["data"]["content"] == "with-title"
 
     r = client.post("/notes", json={"title": "", "content": "bad-title"})
     assert r.status_code == 422
@@ -227,13 +232,15 @@ def test_update_note_route_supports_title_set_and_clear():
 
     r = client.put("/notes/1", json={"title": "updated-title", "content": "updated-content"})
     assert r.status_code == 200
-    assert r.json()["title"] == "updated-title"
-    assert r.json()["content"] == "updated-content"
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["title"] == "updated-title"
+    assert r.json()["data"]["content"] == "updated-content"
 
     r = client.put("/notes/1", json={"title": None})
     assert r.status_code == 200
-    assert r.json()["title"] is None
-    assert r.json()["content"] == "updated-content"
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["title"] is None
+    assert r.json()["data"]["content"] == "updated-content"
 
     r = client.put("/notes/1", json={"title": ""})
     assert r.status_code == 422
@@ -244,14 +251,16 @@ def test_update_note_route_supports_title_set_and_clear():
     app.dependency_overrides.clear()
 
 
-def test_delete_note_route_returns_204_or_404():
+def test_delete_note_route_returns_200_or_404():
     fake_service = FakeNoteService()
     app.dependency_overrides[get_note_service] = lambda: fake_service
     app.dependency_overrides[get_current_user] = lambda: FakeUser(user_id=99)
     client = TestClient(app)
 
     r = client.delete("/notes/1")
-    assert r.status_code == 204
+    assert r.status_code == 200
+    assert r.json()["code"] == 0
+    assert r.json()["data"] is None
 
     r = client.delete("/notes/999")
     assert r.status_code == 404
@@ -267,10 +276,11 @@ def test_restore_note_route_returns_note_or_404():
 
     r = client.post("/notes/2/restore")
     assert r.status_code == 200
-    assert r.json()["id"] == 2
-    assert r.json()["title"] == "archived-title"
-    assert r.json()["is_archived"] is False
-    assert r.json()["archived_at"] is None
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["id"] == 2
+    assert r.json()["data"]["title"] == "archived-title"
+    assert r.json()["data"]["is_archived"] is False
+    assert r.json()["data"]["archived_at"] is None
 
     r = client.post("/notes/999/restore")
     assert r.status_code == 404
@@ -297,7 +307,8 @@ def test_set_note_tags_route_success_and_validation():
 
     r = client.put("/notes/1/tags", json={"tag_ids": [1, 2]})
     assert r.status_code == 200
-    assert [item["id"] for item in r.json()["tags"]] == [1, 2]
+    assert r.json()["code"] == 0
+    assert [item["id"] for item in r.json()["data"]["tags"]] == [1, 2]
 
     r = client.put("/notes/1/tags", json={"tag_ids": [999]})
     assert r.status_code == 400

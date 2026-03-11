@@ -58,7 +58,8 @@ def test_auth_register_login_refresh_logout_and_me_routes():
 
     r = client.post("/auth/register", json={"username": "alice", "password": "password123"})
     assert r.status_code == 201
-    assert r.json()["username"] == "alice"
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["username"] == "alice"
 
     r = client.post("/auth/register", json={"username": "exists", "password": "password123"})
     assert r.status_code == 400
@@ -66,7 +67,8 @@ def test_auth_register_login_refresh_logout_and_me_routes():
 
     r = client.post("/auth/login", json={"username": "alice", "password": "password123"})
     assert r.status_code == 200
-    assert r.json()["access_token"] == "access-token"
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["access_token"] == "access-token"
 
     r = client.post("/auth/login", json={"username": "alice", "password": "badpass123"})
     assert r.status_code == 401
@@ -74,19 +76,23 @@ def test_auth_register_login_refresh_logout_and_me_routes():
 
     r = client.post("/auth/refresh", json={"refresh_token": "ok"})
     assert r.status_code == 200
-    assert r.json()["access_token"] == "new-access-token"
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["access_token"] == "new-access-token"
 
     r = client.post("/auth/refresh", json={"refresh_token": "bad"})
     assert r.status_code == 401
     assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_REFRESH_TOKEN)
 
     r = client.post("/auth/logout", json={"refresh_token": "to-revoke"})
-    assert r.status_code == 204
+    assert r.status_code == 200
+    assert r.json()["code"] == 0
+    assert r.json()["data"] is None
     assert fake_service.logout_called_with == "to-revoke"
 
     r = client.get("/auth/me")
     assert r.status_code == 200
-    assert r.json()["id"] == 99
+    assert r.json()["code"] == 0
+    assert r.json()["data"]["id"] == 99
 
     app.dependency_overrides.clear()
 

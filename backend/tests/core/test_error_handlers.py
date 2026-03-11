@@ -30,6 +30,7 @@ def test_app_error_uses_unified_error_payload():
     assert payload == {
         "code": int(ErrorCode.AUTH_INVALID_AUTH),
         "message": "无效的认证信息",
+        "data": None,
         "details": None,
     }
     assert response.headers["www-authenticate"] == "Bearer"
@@ -50,6 +51,7 @@ def test_http_exception_uses_unified_error_payload():
         assert payload == {
             "code": int(ErrorCode.FORBIDDEN),
             "message": "forbidden",
+            "data": None,
             "details": None,
         }
     finally:
