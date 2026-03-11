@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import MDEditor from "@uiw/react-md-editor";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+
+import "@uiw/react-markdown-preview/markdown.css";
+import "@uiw/react-md-editor/markdown-editor.css";
 
 import { getMessageByCode } from "../api/error-messages";
 import { toApiError } from "../api/envelope";
@@ -220,7 +224,7 @@ export function NewNotePage() {
           selectedNoteId={resolvedSelectedNoteId}
         />
 
-        <article className="flex min-h-0 flex-col gap-[14px] rounded-[14px] border border-[#E2E8F0] bg-white p-4">
+        <article className="flex min-h-0 flex-col rounded-[14px] border border-[#E2E8F0] bg-white p-4">
           {isEditMode && editNoteQuery.isLoading ? (
             <div className="flex h-full items-center justify-center text-sm text-[#64748B]">正在加载笔记内容...</div>
           ) : null}
@@ -229,96 +233,99 @@ export function NewNotePage() {
           ) : null}
           {!isEditMode || (!editNoteQuery.isLoading && !editNoteQuery.isError) ? (
             <>
-          <div className="space-y-1">
-            <h2 className="text-[20px] font-bold text-[#0F172A]">{isEditMode ? "继续编辑" : "开始撰写"}</h2>
-            <p className="text-[13px] text-[#64748B]">
-              {isEditMode ? "修改标题、标签与正文，保存后覆盖原内容" : "填写标题、标签与正文，支持自动保存草稿"}
-            </p>
-          </div>
-
-          <div className="space-y-[14px]">
-            <div className="space-y-1.5">
-              <p className="text-[13px] font-semibold text-[#475569]">标题</p>
-              <input
-                className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-[10px] text-[13px] text-[#0F172A] outline-none focus:border-[#60A5FA]"
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="例如：产品需求评审"
-                value={title}
-              />
-            </div>
-
-            <div className="relative space-y-1.5">
-              <p className="text-[13px] font-semibold text-[#475569]">标签</p>
-              <input
-                className="h-9 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-[10px] text-[13px] text-[#0F172A] outline-none focus:border-[#60A5FA]"
-                onChange={(event) => setTagInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    onTagInputEnter();
-                  }
-                }}
-                placeholder="#输入标签名"
-                value={tagInput}
-              />
-              {tagSuggestions.length > 0 ? (
-                <div className="absolute left-0 right-0 top-[74px] z-20 rounded-lg border border-[#E2E8F0] bg-white p-1 shadow-md">
-                  {tagSuggestions.map((tag) => (
-                    <button
-                      key={tag.id}
-                      className="block h-8 w-full rounded px-2 text-left text-sm text-[#334155] hover:bg-[#EFF6FF]"
-                      onClick={() => pickTag(tag)}
-                      type="button"
-                    >
-                      #{tag.name}
-                    </button>
-                  ))}
+              <div className="min-h-0 flex-1 space-y-[14px] overflow-y-auto pr-1">
+                <div className="space-y-1.5">
+                  <p className="text-[13px] font-semibold text-[#475569]">标题</p>
+                  <input
+                    className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-[10px] text-[13px] text-[#0F172A] outline-none focus:border-[#60A5FA]"
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder="例如：产品需求评审"
+                    value={title}
+                  />
                 </div>
-              ) : null}
-              {selectedTags.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedTags.map((tag) => (
-                    <button
-                      key={tag.id}
-                      className="inline-flex items-center rounded-full bg-[#DBEAFE] px-2 py-0.5 text-xs font-medium text-[#1D4ED8]"
-                      onClick={() => setSelectedTags((prev) => prev.filter((item) => item.id !== tag.id))}
-                      type="button"
-                    >
-                      #{tag.name} ×
-                    </button>
-                  ))}
+
+                <div className="relative space-y-1.5">
+                  <p className="text-[13px] font-semibold text-[#475569]">标签</p>
+                  <div className="relative">
+                    <div className="flex min-h-9 w-full flex-wrap items-center gap-1 rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-2 py-1 focus-within:border-[#60A5FA]">
+                      {selectedTags.map((tag) => (
+                        <button
+                          key={tag.id}
+                          className="inline-flex h-6 items-center rounded-full bg-[#DBEAFE] px-2 text-xs font-medium text-[#1D4ED8]"
+                          onClick={() => setSelectedTags((prev) => prev.filter((item) => item.id !== tag.id))}
+                          type="button"
+                        >
+                          #{tag.name} ×
+                        </button>
+                      ))}
+                      <input
+                        className="h-7 min-w-[120px] flex-1 border-none bg-transparent px-1 text-[13px] text-[#0F172A] outline-none"
+                        onChange={(event) => setTagInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            onTagInputEnter();
+                            return;
+                          }
+                          if (event.key === "Backspace" && !tagInput.trim() && selectedTags.length > 0) {
+                            event.preventDefault();
+                            setSelectedTags((prev) => prev.slice(0, -1));
+                          }
+                        }}
+                        placeholder={selectedTags.length > 0 ? "继续输入标签" : "#输入标签名"}
+                        value={tagInput}
+                      />
+                    </div>
+                    {tagSuggestions.length > 0 ? (
+                      <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-[#E2E8F0] bg-white p-1 shadow-md">
+                        {tagSuggestions.map((tag) => (
+                          <button
+                            key={tag.id}
+                            className="block h-8 w-full rounded px-2 text-left text-sm text-[#334155] hover:bg-[#EFF6FF]"
+                            onClick={() => pickTag(tag)}
+                            type="button"
+                          >
+                            #{tag.name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              ) : null}
-            </div>
 
-            <div className="space-y-1.5">
-              <p className="text-[13px] font-semibold text-[#475569]">正文</p>
-              <textarea
-                className="h-[220px] w-full resize-none rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] p-3 text-sm leading-6 text-[#334155] outline-none focus:border-[#60A5FA]"
-                onChange={(event) => setContent(event.target.value)}
-                placeholder="输入你的想法..."
-                value={content}
-              />
-            </div>
-          </div>
+                <div className="space-y-1.5">
+                  <p className="text-[13px] font-semibold text-[#475569]">正文</p>
+                  <div className="overflow-hidden rounded-lg border border-[#CBD5E1]" data-color-mode="light">
+                    <MDEditor
+                      height={420}
+                      preview="edit"
+                      textareaProps={{
+                        placeholder: "输入你的想法...",
+                      }}
+                      value={content}
+                      onChange={(value) => setContent(value ?? "")}
+                    />
+                  </div>
+                </div>
+              </div>
 
-          <div className="mt-auto flex h-10 items-center justify-end gap-3">
-            <button
-              className="inline-flex h-10 w-24 items-center justify-center rounded-[10px] border border-[#CBD5E1] bg-[#F1F5F9] text-sm text-[#334155] transition hover:bg-[#E2E8F0]"
-              onClick={resetForm}
-              type="button"
-            >
-              取消
-            </button>
-            <button
-              className="inline-flex h-10 w-24 items-center justify-center rounded-[10px] bg-[#2563EB] text-sm font-semibold text-white transition hover:bg-[#1D4ED8] disabled:opacity-60"
-              disabled={saveMutation.isPending || !canSave}
-              onClick={() => saveMutation.mutate()}
-              type="button"
-            >
-              {isEditMode ? "保存修改" : "保存"}
-            </button>
-          </div>
+              <div className="z-10 mt-4 flex h-10 items-center justify-end gap-3 border-t border-[#E2E8F0] bg-white pt-3">
+                <button
+                  className="inline-flex h-10 w-24 items-center justify-center rounded-[10px] border border-[#CBD5E1] bg-[#F1F5F9] text-sm text-[#334155] transition hover:bg-[#E2E8F0]"
+                  onClick={resetForm}
+                  type="button"
+                >
+                  取消
+                </button>
+                <button
+                  className="inline-flex h-10 w-24 items-center justify-center rounded-[10px] bg-[#2563EB] text-sm font-semibold text-white transition hover:bg-[#1D4ED8] disabled:opacity-60"
+                  disabled={saveMutation.isPending || !canSave}
+                  onClick={() => saveMutation.mutate()}
+                  type="button"
+                >
+                  {isEditMode ? "保存修改" : "保存"}
+                </button>
+              </div>
             </>
           ) : null}
         </article>

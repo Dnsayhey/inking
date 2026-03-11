@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link2, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import MarkdownPreview from "@uiw/react-markdown-preview";
 import { useNavigate, useSearchParams } from "react-router-dom";
+
+import "@uiw/react-markdown-preview/markdown.css";
 
 import { listNotes } from "../api/notes";
 import { NotesSidebar } from "./notes-shared";
@@ -95,11 +98,15 @@ export function NotesPage() {
                   <Link2 className="h-[14px] w-[14px]" />
                 </button>
               </div>
-              <h2 className="text-[24px] font-bold text-[#0F172A]">{selectedNote.title || "无标题"}</h2>
-              <p className="mt-2 text-[13px] font-semibold text-[#2563EB]">
-                {selectedNote.tags.length > 0 ? selectedNote.tags.map((tag) => `#${tag.name}`).join("  ") : "无标签"}
-              </p>
-              <p className="mt-3 whitespace-pre-wrap text-[15px] leading-[1.6] text-[#334155]">{selectedNote.content}</p>
+              <div className="notes-list-scrollbar min-h-0 flex-1 pr-1 pt-2">
+                <div className="max-w-[860px]">
+                  <MarkdownPreview
+                    source={selectedNote.content?.trim() ? selectedNote.content : "_暂无内容_"}
+                    style={{ backgroundColor: "transparent", padding: 0 }}
+                    wrapperElement={{ "data-color-mode": "light" }}
+                  />
+                </div>
+              </div>
             </>
           )}
         </article>
