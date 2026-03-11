@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.deps import get_current_user
 from src.auth.model import User
-from src.core.api_response import ApiResponse, ok_response
+from src.core.api_response import ApiListResponse, ApiResponse, ok_response
 from src.core.database import get_db
 from src.core.error_codes import ErrorCode
 from src.core.exceptions import BadRequestError, NotFoundError
@@ -67,7 +67,7 @@ async def get_note(
     return ok_response(note)
 
 
-@router.get("", response_model=ApiResponse[List[NoteRead]])
+@router.get("", response_model=ApiListResponse[List[NoteRead]])
 async def list_notes(
     archived: bool = False,
     tag_ids: str | None = None,
@@ -80,7 +80,7 @@ async def list_notes(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     parsed_tag_ids = parse_tag_ids(tag_ids)
-    notes = await service.list_notes(
+    notes, total, limit, offset = await service.list_notes(
         user_id=current_user.id,
         archived=archived,
         tag_ids=parsed_tag_ids,
@@ -90,7 +90,12 @@ async def list_notes(
         limit=limit,
         offset=offset,
     )
-    return ok_response(notes)
+    meta = {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+    return ok_response(notes, meta=meta)
 
 
 @router.put("/{note_id}", response_model=ApiResponse[NoteRead])
@@ -143,7 +148,7 @@ async def set_note_tags(
     return ok_response(note)
 
 
-@router.get("/{note_id}/reminders", response_model=ApiResponse[list[NoteReminderRead]])
+@router.get("/{note_id}/reminders", response_model=ApiListResponse[list[NoteReminderRead]])
 async def list_note_reminders(
     note_id: int,
     service: NoteService = Depends(get_note_service),
@@ -152,7 +157,14 @@ async def list_note_reminders(
     reminders = await service.list_reminders(note_id, current_user.id)
     if reminders is None:
         raise NotFoundError("笔记不存在", code=ErrorCode.NOTE_NOT_FOUND)
-    return ok_response(reminders)
+    return ok_response(
+        reminders,
+        meta={
+            "total": len(reminders),
+            "limit": len(reminders),
+            "offset": 0,
+        },
+    )
 
 
 @router.post("/{note_id}/reminders", response_model=ApiResponse[NoteReminderRead], status_code=status.HTTP_201_CREATED)

@@ -28,8 +28,8 @@ class NoteService:
         direction: str = "desc",
         limit: int = 10,
         offset: int = 0,
-    ) -> list[Note]:
-        return await self.repository.get_all(
+    ) -> tuple[list[Note], int, int, int]:
+        return await self.repository.get_all_with_total(
             user_id=user_id,
             archived=archived,
             tag_ids=tag_ids,

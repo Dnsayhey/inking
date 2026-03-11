@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.auth.route import router as auth_router
+from src.core.api_response import error_response
 from src.core.config import settings
 from src.core.error_codes import ErrorCode
 from src.core.exceptions import AppError
@@ -26,20 +27,11 @@ app.include_router(notes_router)
 app.include_router(tags_router)
 
 
-def _error_payload(code: int, message: str, details=None) -> dict:
-    return {
-        "code": code,
-        "message": message,
-        "data": None,
-        "details": details,
-    }
-
-
 @app.exception_handler(AppError)
 async def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
-        content=_error_payload(exc.code, exc.message, exc.details),
+        content=error_response(exc.code, exc.message, exc.details),
         headers=exc.headers,
     )
 
@@ -48,7 +40,7 @@ async def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
 async def handle_request_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
     return JSONResponse(
         status_code=422,
-        content=_error_payload(
+        content=error_response(
             ErrorCode.REQUEST_VALIDATION_ERROR,
             "请求参数不合法",
             jsonable_encoder(exc.errors()),
@@ -75,7 +67,7 @@ async def handle_http_exception(_: Request, exc: HTTPException) -> JSONResponse:
         details = None
     return JSONResponse(
         status_code=exc.status_code,
-        content=_error_payload(int(code), message, details),
+        content=error_response(int(code), message, details),
         headers=exc.headers,
     )
 

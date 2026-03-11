@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.deps import get_current_user
 from src.auth.model import User
-from src.core.api_response import ApiResponse, ok_response
+from src.core.api_response import ApiListResponse, ApiResponse, ok_response
 from src.core.database import get_db
 from src.core.error_codes import ErrorCode
 from src.core.exceptions import NotFoundError
@@ -28,14 +28,21 @@ async def create_tag(
     return ok_response(tag)
 
 
-@router.get("", response_model=ApiResponse[list[TagRead]])
+@router.get("", response_model=ApiListResponse[list[TagRead]])
 async def list_tags(
     search: str | None = Query(default=None),
     service: TagService = Depends(get_tag_service),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     tags = await service.list_tags(current_user.id, search=search)
-    return ok_response(tags)
+    return ok_response(
+        tags,
+        meta={
+            "total": len(tags),
+            "limit": len(tags),
+            "offset": 0,
+        },
+    )
 
 
 @router.post("/merge", response_model=ApiResponse[TagRead])

@@ -104,6 +104,7 @@ def test_reminder_routes_crud_and_validation():
     assert r.status_code == 200
     assert r.json()["code"] == 0
     assert len(r.json()["data"]) == 1
+    assert r.json()["meta"] == {"total": 1, "limit": 1, "offset": 0}
 
     r = client.get("/notes/999/reminders")
     assert r.status_code == 404

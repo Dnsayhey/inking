@@ -1,7 +1,7 @@
-from typing import Any, Mapping
 from datetime import datetime, timezone
+from typing import Any, Mapping
 
-from sqlalchemy import asc, desc, select
+from sqlalchemy import asc, desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -45,32 +45,79 @@ class NoteRepository:
         limit: int = 10,
         offset: int = 0,
     ) -> list[Note]:
-        query = (
-            select(Note)
-            .options(selectinload(Note.tags))
-            .where(Note.user_id == user_id, Note.is_archived.is_(archived))
-        )
+        query = self._build_note_filter_query(
+            user_id=user_id,
+            archived=archived,
+            tag_ids=tag_ids,
+            search=search,
+        ).options(selectinload(Note.tags))
+        query = self._apply_sort(query, order_by=order_by, direction=direction)
 
+        limit, offset = self._normalize_pagination(limit=limit, offset=offset)
+        paginated_query = query.offset(offset).limit(limit)
+        return list(await self.session.scalars(paginated_query))
+
+    async def get_all_with_total(
+        self,
+        *,
+        user_id: int,
+        archived: bool = False,
+        tag_ids: list[int] | None = None,
+        search: str | None = None,
+        order_by: str = "updated_at",
+        direction: str = "desc",
+        limit: int = 10,
+        offset: int = 0,
+    ) -> tuple[list[Note], int, int, int]:
+        filter_query = self._build_note_filter_query(
+            user_id=user_id,
+            archived=archived,
+            tag_ids=tag_ids,
+            search=search,
+        )
+        total_query = select(func.count()).select_from(filter_query.order_by(None).subquery())
+        total = int(await self.session.scalar(total_query) or 0)
+
+        query = filter_query.options(selectinload(Note.tags))
+        query = self._apply_sort(query, order_by=order_by, direction=direction)
+        limit, offset = self._normalize_pagination(limit=limit, offset=offset)
+        paginated_query = query.offset(offset).limit(limit)
+        notes = list(await self.session.scalars(paginated_query))
+        return notes, total, limit, offset
+
+    @staticmethod
+    def _build_note_filter_query(
+        *,
+        user_id: int,
+        archived: bool,
+        tag_ids: list[int] | None,
+        search: str | None,
+    ):
+        query = select(Note).where(Note.user_id == user_id, Note.is_archived.is_(archived))
         if search:
             pattern = f"%{search}%"
             query = query.where(Note.content.ilike(pattern))
-
         if tag_ids:
-            tag_ids = list(set(tag_ids))
+            normalized_tag_ids = list(set(tag_ids))
             query = query.where(
-                Note.id.in_(select(NoteTag.note_id).where(NoteTag.tag_id.in_(tag_ids)))
+                Note.id.in_(select(NoteTag.note_id).where(NoteTag.tag_id.in_(normalized_tag_ids)))
             )
+        return query
 
+    @staticmethod
+    def _apply_sort(query, *, order_by: str, direction: str):
         allowed_sort = {"id", "created_at", "updated_at"}
         if order_by not in allowed_sort:
             order_by = "updated_at"
         order_column = getattr(Note, order_by, Note.updated_at)
-        query = query.order_by(desc(order_column) if direction == "desc" else asc(order_column), desc(Note.id))
+        return query.order_by(
+            desc(order_column) if direction == "desc" else asc(order_column),
+            desc(Note.id),
+        )
 
-        limit = max(1, min(limit, 500))
-        offset = max(offset, 0)
-        paginated_query = query.offset(offset).limit(limit)
-        return list(await self.session.scalars(paginated_query))
+    @staticmethod
+    def _normalize_pagination(*, limit: int, offset: int) -> tuple[int, int]:
+        return max(1, min(limit, 500)), max(offset, 0)
 
     async def update(self, note_data: Mapping[str, Any], note_id: int, user_id: int) -> Note | None:
         note = await self.get_by_id(note_id, user_id)

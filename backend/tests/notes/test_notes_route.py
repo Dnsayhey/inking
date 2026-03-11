@@ -79,7 +79,9 @@ class FakeNoteService:
                 "offset": offset,
             }
         )
-        return [self.note_archived] if archived else [self.note_active]
+        notes = [self.note_archived] if archived else [self.note_active]
+        total = len(notes)
+        return notes, total, limit, offset
 
     async def update_note(self, note_id: int, note_data, user_id: int):
         if note_id != self.note_active["id"]:
@@ -116,6 +118,7 @@ def test_notes_list_supports_archived_filter_and_query_params():
     assert r.json()["data"][0]["title"] is None
     assert r.json()["data"][0]["created_at"].endswith("Z")
     assert r.json()["data"][0]["updated_at"].endswith("Z")
+    assert r.json()["meta"] == {"total": 1, "limit": 10, "offset": 0}
 
     r = client.get(
         "/notes",
@@ -133,6 +136,7 @@ def test_notes_list_supports_archived_filter_and_query_params():
     assert r.json()["code"] == 0
     assert r.json()["data"][0]["is_archived"] is True
     assert r.json()["data"][0]["title"] == "archived-title"
+    assert r.json()["meta"] == {"total": 1, "limit": 5, "offset": 10}
 
     assert fake_service.list_calls[0] == {
         "user_id": 99,

@@ -87,12 +87,14 @@ def test_tag_routes_create_list_update_delete():
     assert r.status_code == 200
     assert r.json()["code"] == 0
     assert len(r.json()["data"]) == 2
+    assert r.json()["meta"] == {"total": 2, "limit": 2, "offset": 0}
 
     r = client.get("/tags", params={"search": "wor"})
     assert r.status_code == 200
     assert r.json()["code"] == 0
     assert len(r.json()["data"]) == 1
     assert r.json()["data"][0]["name"] == "work"
+    assert r.json()["meta"] == {"total": 1, "limit": 1, "offset": 0}
 
     r = client.patch("/tags/1", json={"name": "updated", "color": "#999999"})
     assert r.status_code == 200
