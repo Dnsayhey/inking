@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { getMessageByCode } from "../api/error-messages";
+import { toApiError } from "../api/envelope";
 import { createNote, getNote, listNotes, setNoteTags, updateNote } from "../api/notes";
 import { createTag, listTags } from "../api/tags";
 import { useToast } from "../components/ui";
@@ -138,7 +140,11 @@ export function NewNotePage() {
       }
       navigate(`/notes?noteId=${savedNoteId}`, { replace: true });
     },
-    onError: () => showToast(isEditMode ? "更新失败，请稍后重试" : "保存失败，请稍后重试", "error"),
+    onError: (error) => {
+      const apiError = toApiError(error);
+      const fallback = isEditMode ? "更新失败，请稍后重试" : "保存失败，请稍后重试";
+      showToast(getMessageByCode(apiError.code, apiError.message || fallback), "error");
+    },
   });
 
   const createTagMutation = useMutation({
@@ -149,7 +155,10 @@ export function NewNotePage() {
       void queryClient.invalidateQueries({ queryKey: ["tags"] });
       showToast(`标签 #${tag.name} 已创建`, "success");
     },
-    onError: () => showToast("创建标签失败，名称可能已存在", "error"),
+    onError: (error) => {
+      const apiError = toApiError(error);
+      showToast(getMessageByCode(apiError.code, apiError.message), "error");
+    },
   });
 
   const pickTag = (tag: { id: number; name: string }) => {

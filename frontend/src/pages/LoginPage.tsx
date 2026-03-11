@@ -5,6 +5,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { login } from "../api/auth";
+import { getMessageByCode } from "../api/error-messages";
+import { toApiError } from "../api/envelope";
 import { setTokens } from "../auth/token";
 import { useToast } from "../components/ui";
 
@@ -40,7 +42,10 @@ export function LoginPage() {
       showToast("登录成功", "success");
       navigate("/notes", { replace: true });
     },
-    onError: () => showToast("用户名或密码错误", "error"),
+    onError: (error) => {
+      const apiError = toApiError(error);
+      showToast(getMessageByCode(apiError.code, apiError.message), "error");
+    },
   });
 
   const onSubmit = (values: LoginFormData) => {

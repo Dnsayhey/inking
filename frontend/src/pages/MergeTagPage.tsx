@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
+import { getMessageByCode } from "../api/error-messages";
+import { toApiError } from "../api/envelope";
 import { listTags, mergeTags } from "../api/tags";
 import { useToast } from "../components/ui";
 
@@ -37,7 +39,10 @@ export function MergeTagPage() {
       void queryClient.invalidateQueries({ queryKey: ["notes"] });
       navigate("/tags", { replace: true });
     },
-    onError: () => showToast("标签合并失败，请稍后重试", "error"),
+    onError: (error) => {
+      const apiError = toApiError(error);
+      showToast(getMessageByCode(apiError.code, apiError.message), "error");
+    },
   });
 
   const toTagOptions = useMemo(() => {

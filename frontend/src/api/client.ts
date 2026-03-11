@@ -1,6 +1,7 @@
 import axios from "axios";
 
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "../auth/token";
+import { ApiEnvelope, toApiError, unwrapEnvelope } from "./envelope";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -25,11 +26,11 @@ async function refreshAccessToken(): Promise<string | null> {
     return null;
   }
 
-  const response = await axios.post(`${apiBaseUrl}/auth/refresh`, {
+  const response = await axios.post<ApiEnvelope<{ access_token: string; refresh_token: string }>>(`${apiBaseUrl}/auth/refresh`, {
     refresh_token: refreshToken,
   });
 
-  const { access_token: accessToken, refresh_token: newRefreshToken } = response.data;
+  const { access_token: accessToken, refresh_token: newRefreshToken } = unwrapEnvelope(response.data);
   setTokens(accessToken, newRefreshToken);
   return accessToken;
 }
@@ -39,11 +40,11 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     if (!originalRequest || originalRequest._retry) {
-      return Promise.reject(error);
+      return Promise.reject(toApiError(error));
     }
 
     if (error.response?.status !== 401) {
-      return Promise.reject(error);
+      return Promise.reject(toApiError(error));
     }
 
     originalRequest._retry = true;
@@ -60,7 +61,7 @@ api.interceptors.response.use(
     const newToken = await refreshPromise;
     if (!newToken) {
       clearTokens();
-      return Promise.reject(error);
+      return Promise.reject(toApiError(error));
     }
 
     originalRequest.headers.Authorization = `Bearer ${newToken}`;

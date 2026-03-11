@@ -1,4 +1,5 @@
 import { api } from "./client";
+import { ApiEnvelope, unwrapEnvelope } from "./envelope";
 
 export type LoginPayload = {
   username: string;
@@ -24,20 +25,21 @@ export type UserProfile = {
 };
 
 export async function register(payload: RegisterPayload) {
-  const response = await api.post<UserProfile>("/auth/register", payload);
-  return response.data;
+  const response = await api.post<ApiEnvelope<UserProfile>>("/auth/register", payload);
+  return unwrapEnvelope(response.data);
 }
 
 export async function login(payload: LoginPayload) {
-  const response = await api.post<TokenPair>("/auth/login", payload);
-  return response.data;
+  const response = await api.post<ApiEnvelope<TokenPair>>("/auth/login", payload);
+  return unwrapEnvelope(response.data);
 }
 
 export async function getMe() {
-  const response = await api.get<UserProfile>("/auth/me");
-  return response.data;
+  const response = await api.get<ApiEnvelope<UserProfile>>("/auth/me");
+  return unwrapEnvelope(response.data);
 }
 
 export async function logout(refreshToken: string) {
-  await api.post("/auth/logout", { refresh_token: refreshToken });
+  const response = await api.post<ApiEnvelope<null>>("/auth/logout", { refresh_token: refreshToken });
+  unwrapEnvelope(response.data);
 }

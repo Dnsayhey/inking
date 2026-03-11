@@ -1,4 +1,5 @@
 import { api } from "./client";
+import { ApiEnvelope, unwrapEnvelope } from "./envelope";
 
 export type NoteTag = {
   id: number;
@@ -74,54 +75,56 @@ export async function listNotes(params: ListNotesParams = {}) {
   if (params.search && params.search.trim()) {
     query.search = params.search.trim();
   }
-  const response = await api.get<Note[]>("/notes", { params: query });
-  return response.data;
+  const response = await api.get<ApiEnvelope<Note[]>>("/notes", { params: query });
+  return unwrapEnvelope(response.data);
 }
 
 export async function createNote(payload: CreateNotePayload) {
-  const response = await api.post<Note>("/notes", payload);
-  return response.data;
+  const response = await api.post<ApiEnvelope<Note>>("/notes", payload);
+  return unwrapEnvelope(response.data);
 }
 
 export async function getNote(noteId: number) {
-  const response = await api.get<Note>(`/notes/${noteId}`);
-  return response.data;
+  const response = await api.get<ApiEnvelope<Note>>(`/notes/${noteId}`);
+  return unwrapEnvelope(response.data);
 }
 
 export async function updateNote(noteId: number, payload: UpdateNotePayload) {
-  const response = await api.put<Note>(`/notes/${noteId}`, payload);
-  return response.data;
+  const response = await api.put<ApiEnvelope<Note>>(`/notes/${noteId}`, payload);
+  return unwrapEnvelope(response.data);
 }
 
 export async function deleteNote(noteId: number) {
-  await api.delete(`/notes/${noteId}`);
+  const response = await api.delete<ApiEnvelope<null>>(`/notes/${noteId}`);
+  unwrapEnvelope(response.data);
 }
 
 export async function restoreNote(noteId: number) {
-  const response = await api.post<Note>(`/notes/${noteId}/restore`);
-  return response.data;
+  const response = await api.post<ApiEnvelope<Note>>(`/notes/${noteId}/restore`);
+  return unwrapEnvelope(response.data);
 }
 
 export async function setNoteTags(noteId: number, tagIds: number[]) {
-  const response = await api.put<Note>(`/notes/${noteId}/tags`, { tag_ids: tagIds });
-  return response.data;
+  const response = await api.put<ApiEnvelope<Note>>(`/notes/${noteId}/tags`, { tag_ids: tagIds });
+  return unwrapEnvelope(response.data);
 }
 
 export async function listNoteReminders(noteId: number) {
-  const response = await api.get<NoteReminder[]>(`/notes/${noteId}/reminders`);
-  return response.data;
+  const response = await api.get<ApiEnvelope<NoteReminder[]>>(`/notes/${noteId}/reminders`);
+  return unwrapEnvelope(response.data);
 }
 
 export async function createNoteReminder(noteId: number, payload: NoteReminderPayload) {
-  const response = await api.post<NoteReminder>(`/notes/${noteId}/reminders`, payload);
-  return response.data;
+  const response = await api.post<ApiEnvelope<NoteReminder>>(`/notes/${noteId}/reminders`, payload);
+  return unwrapEnvelope(response.data);
 }
 
 export async function updateNoteReminder(noteId: number, reminderId: number, payload: Partial<NoteReminderPayload>) {
-  const response = await api.patch<NoteReminder>(`/notes/${noteId}/reminders/${reminderId}`, payload);
-  return response.data;
+  const response = await api.patch<ApiEnvelope<NoteReminder>>(`/notes/${noteId}/reminders/${reminderId}`, payload);
+  return unwrapEnvelope(response.data);
 }
 
 export async function deleteNoteReminder(noteId: number, reminderId: number) {
-  await api.delete(`/notes/${noteId}/reminders/${reminderId}`);
+  const response = await api.delete<ApiEnvelope<null>>(`/notes/${noteId}/reminders/${reminderId}`);
+  unwrapEnvelope(response.data);
 }

@@ -1,4 +1,5 @@
 import { api } from "./client";
+import { ApiEnvelope, unwrapEnvelope } from "./envelope";
 
 export type Tag = {
   id: number;
@@ -24,27 +25,28 @@ export type MergeTagPayload = {
 };
 
 export async function listTags(search?: string) {
-  const response = await api.get<Tag[]>("/tags", {
+  const response = await api.get<ApiEnvelope<Tag[]>>("/tags", {
     params: search ? { search } : undefined,
   });
-  return response.data;
+  return unwrapEnvelope(response.data);
 }
 
 export async function createTag(payload: CreateTagPayload) {
-  const response = await api.post<Tag>("/tags", payload);
-  return response.data;
+  const response = await api.post<ApiEnvelope<Tag>>("/tags", payload);
+  return unwrapEnvelope(response.data);
 }
 
 export async function updateTag(tagId: number, payload: UpdateTagPayload) {
-  const response = await api.patch<Tag>(`/tags/${tagId}`, payload);
-  return response.data;
+  const response = await api.patch<ApiEnvelope<Tag>>(`/tags/${tagId}`, payload);
+  return unwrapEnvelope(response.data);
 }
 
 export async function deleteTag(tagId: number) {
-  await api.delete(`/tags/${tagId}`);
+  const response = await api.delete<ApiEnvelope<null>>(`/tags/${tagId}`);
+  unwrapEnvelope(response.data);
 }
 
 export async function mergeTags(payload: MergeTagPayload) {
-  const response = await api.post<Tag>("/tags/merge", payload);
-  return response.data;
+  const response = await api.post<ApiEnvelope<Tag>>("/tags/merge", payload);
+  return unwrapEnvelope(response.data);
 }

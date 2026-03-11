@@ -5,6 +5,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { login, register } from "../api/auth";
+import { getMessageByCode } from "../api/error-messages";
+import { toApiError } from "../api/envelope";
 import { setTokens } from "../auth/token";
 import { useToast } from "../components/ui";
 
@@ -44,7 +46,10 @@ export function RegisterPage() {
       showToast("注册成功", "success");
       navigate("/notes", { replace: true });
     },
-    onError: () => showToast("注册失败，用户名可能已存在", "error"),
+    onError: (error) => {
+      const apiError = toApiError(error);
+      showToast(getMessageByCode(apiError.code, apiError.message), "error");
+    },
   });
 
   const onSubmit = (values: RegisterFormData) => {

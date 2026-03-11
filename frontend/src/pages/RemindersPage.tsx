@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { getMessageByCode } from "../api/error-messages";
+import { toApiError } from "../api/envelope";
 import {
   createNoteReminder,
   listNoteReminders,
@@ -99,7 +101,10 @@ export function RemindersPage() {
       showToast("提醒创建成功", "success");
       void queryClient.invalidateQueries({ queryKey: ["reminders", selectedNoteId] });
     },
-    onError: () => showToast("提醒创建失败", "error"),
+    onError: (error) => {
+      const apiError = toApiError(error);
+      showToast(getMessageByCode(apiError.code, apiError.message), "error");
+    },
   });
 
   const canCreate = Boolean(selectedNoteId && form.month >= 1 && form.day >= 1 && form.time_of_day.trim());

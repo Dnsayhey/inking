@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { getMessageByCode } from "../api/error-messages";
+import { toApiError } from "../api/envelope";
 import { createTag } from "../api/tags";
 import { useToast } from "../components/ui";
 import { TAG_COLORS, TagColorPicker } from "./tags-shared";
@@ -24,7 +26,10 @@ export function NewTagPage() {
       void queryClient.invalidateQueries({ queryKey: ["tags"] });
       navigate("/tags", { replace: true });
     },
-    onError: () => showToast("标签创建失败", "error"),
+    onError: (error) => {
+      const apiError = toApiError(error);
+      showToast(getMessageByCode(apiError.code, apiError.message), "error");
+    },
   });
 
   return (
