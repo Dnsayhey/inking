@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class TagCreate(BaseModel):
@@ -27,12 +27,6 @@ class TagUpdate(BaseModel):
 class TagMergeRequest(BaseModel):
     from_tag_id: Annotated[int, Field(..., gt=0, description="来源标签 ID")]
     to_tag_id: Annotated[int, Field(..., gt=0, description="目标标签 ID")]
-
-    @model_validator(mode="after")
-    def ensure_distinct_ids(self) -> "TagMergeRequest":
-        if self.from_tag_id == self.to_tag_id:
-            raise ValueError("来源标签和目标标签不能相同")
-        return self
 
 
 class TagRead(BaseModel):

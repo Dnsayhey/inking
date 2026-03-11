@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from src.auth.model import User
 from src.core.base_model import Base
+from src.core.error_codes import ErrorCode
+from src.core.exceptions import AppError
 from src.notes.model import Note
 from src.tags.repository import TagRepository
 from src.tags.schema import TagCreate, TagMergeRequest
@@ -123,3 +125,18 @@ async def test_merge_tag_returns_none_when_source_or_target_missing(session: Asy
         TagMergeRequest(from_tag_id=source.id, to_tag_id=999),
     )
     assert missing_target is None
+
+
+@pytest.mark.asyncio
+async def test_merge_tag_rejects_same_source_and_target_id(session: AsyncSession):
+    user = await create_user(session, "alice")
+    service = TagService(TagRepository(session))
+    source = await service.create_tag(user.id, TagCreate(name="work", color="#111111"))
+
+    with pytest.raises(AppError) as exc:
+        await service.merge_tag(
+            user.id,
+            TagMergeRequest(from_tag_id=source.id, to_tag_id=source.id),
+        )
+
+    assert exc.value.code == int(ErrorCode.TAG_MERGE_SAME_ID)

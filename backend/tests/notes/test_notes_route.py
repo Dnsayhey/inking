@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 
 from src.auth.deps import get_current_user
+from src.core.error_codes import ErrorCode
+from src.core.exceptions import BadRequestError
 from src.main import app
 from src.notes.route import get_note_service
 
@@ -162,9 +164,11 @@ def test_notes_list_rejects_invalid_tag_ids():
 
     r = client.get("/notes", params={"tag_ids": "1,a"})
     assert r.status_code == 400
+    assert r.json()["code"] == int(ErrorCode.NOTE_TAG_IDS_INVALID)
 
     r = client.get("/notes", params={"tag_ids": "0,1"})
     assert r.status_code == 400
+    assert r.json()["code"] == int(ErrorCode.NOTE_TAG_IDS_INVALID)
 
     app.dependency_overrides.clear()
 
@@ -281,7 +285,7 @@ def test_set_note_tags_route_success_and_validation():
         if note_id == 999:
             return None
         if 999 in tag_ids:
-            raise ValueError("标签不存在")
+            raise BadRequestError("标签不存在", code=ErrorCode.NOTE_TAG_NOT_FOUND)
         updated = fake_service.note_active.copy()
         updated["tags"] = [{"id": tag_id, "name": f"tag-{tag_id}", "color": None} for tag_id in tag_ids]
         return updated
@@ -297,6 +301,7 @@ def test_set_note_tags_route_success_and_validation():
 
     r = client.put("/notes/1/tags", json={"tag_ids": [999]})
     assert r.status_code == 400
+    assert r.json()["code"] == int(ErrorCode.NOTE_TAG_NOT_FOUND)
 
     r = client.put("/notes/999/tags", json={"tag_ids": [1]})
     assert r.status_code == 404
@@ -346,21 +351,29 @@ def test_note_routes_require_bearer_token():
 
     r = client.get("/notes")
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
+    assert r.headers["www-authenticate"] == "Bearer"
 
     r = client.get("/notes/1")
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
 
     r = client.post("/notes", json={"content": "content"})
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
 
     r = client.put("/notes/1", json={"content": "updated"})
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
 
     r = client.delete("/notes/1")
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
 
     r = client.post("/notes/1/restore")
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
 
     r = client.put("/notes/1/tags", json={"tag_ids": [1]})
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)

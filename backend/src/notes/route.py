@@ -1,11 +1,13 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.deps import get_current_user
 from src.auth.model import User
 from src.core.database import get_db
+from src.core.error_codes import ErrorCode
+from src.core.exceptions import BadRequestError, NotFoundError
 from src.notes.model import Note
 from src.notes.repository import NoteRepository
 from src.notes.schema import (
@@ -36,9 +38,9 @@ def parse_tag_ids(tag_ids: str | None) -> list[int] | None:
     try:
         parsed = [int(item.strip()) for item in tag_ids.split(",") if item.strip()]
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tag_ids 格式错误") from e
+        raise BadRequestError("tag_ids 格式错误", code=ErrorCode.NOTE_TAG_IDS_INVALID) from e
     if any(tag_id <= 0 for tag_id in parsed):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tag_ids 必须是正整数")
+        raise BadRequestError("tag_ids 必须是正整数", code=ErrorCode.NOTE_TAG_IDS_INVALID)
     return parsed or None
 
 
@@ -59,7 +61,7 @@ async def get_note(
 ) -> Note:
     note = await service.get_note(note_id, current_user.id)
     if not note:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
+        raise NotFoundError("笔记不存在", code=ErrorCode.NOTE_NOT_FOUND)
     return note
 
 
@@ -97,7 +99,7 @@ async def update_note(
 ) -> Note:
     note = await service.update_note(note_id, note_data, current_user.id)
     if not note:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
+        raise NotFoundError("笔记不存在", code=ErrorCode.NOTE_NOT_FOUND)
     return note
 
 
@@ -109,7 +111,7 @@ async def delete_note(
 ) -> None:
     success = await service.delete_note(note_id, current_user.id)
     if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
+        raise NotFoundError("笔记不存在", code=ErrorCode.NOTE_NOT_FOUND)
 
 
 @router.post("/{note_id}/restore", response_model=NoteRead)
@@ -120,7 +122,7 @@ async def restore_note(
 ) -> Note:
     note = await service.restore_note(note_id, current_user.id)
     if not note:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在或未归档")
+        raise NotFoundError("笔记不存在或未归档", code=ErrorCode.NOTE_RESTORE_NOT_AVAILABLE)
     return note
 
 
@@ -131,12 +133,9 @@ async def set_note_tags(
     service: NoteService = Depends(get_note_service),
     current_user: User = Depends(get_current_user),
 ) -> Note:
-    try:
-        note = await service.set_note_tags(note_id, current_user.id, data.tag_ids)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    note = await service.set_note_tags(note_id, current_user.id, data.tag_ids)
     if not note:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
+        raise NotFoundError("笔记不存在", code=ErrorCode.NOTE_NOT_FOUND)
     return note
 
 
@@ -148,7 +147,7 @@ async def list_note_reminders(
 ) -> list[NoteReminderRead]:
     reminders = await service.list_reminders(note_id, current_user.id)
     if reminders is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
+        raise NotFoundError("笔记不存在", code=ErrorCode.NOTE_NOT_FOUND)
     return reminders
 
 
@@ -159,12 +158,9 @@ async def create_note_reminder(
     service: NoteService = Depends(get_note_service),
     current_user: User = Depends(get_current_user),
 ) -> NoteReminderRead:
-    try:
-        reminder = await service.create_reminder(note_id, current_user.id, data)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    reminder = await service.create_reminder(note_id, current_user.id, data)
     if reminder is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
+        raise NotFoundError("笔记不存在", code=ErrorCode.NOTE_NOT_FOUND)
     return reminder
 
 
@@ -176,12 +172,9 @@ async def update_note_reminder(
     service: NoteService = Depends(get_note_service),
     current_user: User = Depends(get_current_user),
 ) -> NoteReminderRead:
-    try:
-        reminder = await service.update_reminder(note_id, reminder_id, current_user.id, data)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    reminder = await service.update_reminder(note_id, reminder_id, current_user.id, data)
     if reminder is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="提醒不存在或笔记不存在")
+        raise NotFoundError("提醒不存在或笔记不存在", code=ErrorCode.NOTE_REMINDER_NOT_FOUND)
     return reminder
 
 
@@ -194,6 +187,6 @@ async def delete_note_reminder(
 ) -> None:
     success = await service.delete_reminder(note_id, reminder_id, current_user.id)
     if success is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="笔记不存在")
+        raise NotFoundError("笔记不存在", code=ErrorCode.NOTE_NOT_FOUND)
     if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="提醒不存在")
+        raise NotFoundError("提醒不存在", code=ErrorCode.NOTE_REMINDER_NOT_FOUND)

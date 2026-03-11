@@ -79,7 +79,7 @@ uv run python -m alembic downgrade -1
 - `POST /auth/register`：用户注册
 - `POST /auth/login`：用户名密码登录，返回 access/refresh token
 - `POST /auth/refresh`：使用 refresh token 刷新令牌对
-- `POST /auth/logout`：注销当前 refresh 会话
+- `POST /auth/logout`：注销当前 refresh 会话（传 refresh token）
 - `GET /auth/me`：获取当前登录用户信息
 - `POST /tags`：创建标签
 - `GET /tags`：获取标签列表
@@ -96,3 +96,26 @@ uv run python -m alembic downgrade -1
 
 `/notes` 路由组已启用 Bearer Token 鉴权，请在请求头中携带：  
 `Authorization: Bearer <access_token>`
+
+## 错误响应约定
+
+后端统一返回错误结构：
+
+```json
+{
+  "code": 1001,
+  "message": "用户名或密码错误",
+  "details": null
+}
+```
+
+- `code`：业务错误码（稳定，前端建议按此分支）
+- `message`：可读错误信息
+- `details`：扩展字段（如参数校验错误列表）
+
+业务码分段：
+
+- `0xxx`：通用错误
+- `1xxx`：认证（auth）
+- `2xxx`：笔记/提醒（notes）
+- `3xxx`：标签（tags）

@@ -3,6 +3,8 @@ from datetime import datetime, time, timezone
 from fastapi.testclient import TestClient
 
 from src.auth.deps import get_current_user
+from src.core.error_codes import ErrorCode
+from src.core.exceptions import BadRequestError
 from src.main import app
 from src.notes.route import get_note_service
 
@@ -47,7 +49,7 @@ class FakeReminderService:
         if note_id != 1:
             return None
         if data.calendar_type == "solar" and data.month == 2 and data.day == 30:
-            raise ValueError("公历日期无效")
+            raise BadRequestError("公历日期无效", code=ErrorCode.NOTE_REMINDER_INVALID_DATE)
         next_id = max(self.reminders.keys(), default=0) + 1
         now = datetime.now(timezone.utc)
         reminder = {
@@ -77,7 +79,7 @@ class FakeReminderService:
         if not reminder:
             return None
         if data.day == 31 and data.month == 2:
-            raise ValueError("公历日期无效")
+            raise BadRequestError("公历日期无效", code=ErrorCode.NOTE_REMINDER_INVALID_DATE)
         payload = data.model_dump(exclude_unset=True)
         reminder.update(payload)
         reminder["updated_at"] = datetime.now(timezone.utc)
@@ -136,6 +138,7 @@ def test_reminder_routes_crud_and_validation():
         },
     )
     assert r.status_code == 400
+    assert r.json()["code"] == int(ErrorCode.NOTE_REMINDER_INVALID_DATE)
 
     r = client.patch("/notes/1/reminders/1", json={"title": "mom birthday updated", "remind_before_days": 1})
     assert r.status_code == 200
@@ -143,6 +146,7 @@ def test_reminder_routes_crud_and_validation():
 
     r = client.patch("/notes/1/reminders/1", json={"month": 2, "day": 31})
     assert r.status_code == 400
+    assert r.json()["code"] == int(ErrorCode.NOTE_REMINDER_INVALID_DATE)
 
     r = client.patch("/notes/1/reminders/999", json={"title": "missing"})
     assert r.status_code == 404
@@ -236,6 +240,8 @@ def test_reminder_routes_require_bearer_token():
 
     r = client.get("/notes/1/reminders")
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
+    assert r.headers["www-authenticate"] == "Bearer"
 
     r = client.post(
         "/notes/1/reminders",
@@ -252,9 +258,12 @@ def test_reminder_routes_require_bearer_token():
         },
     )
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
 
     r = client.patch("/notes/1/reminders/1", json={"title": "updated"})
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
 
     r = client.delete("/notes/1/reminders/1")
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)

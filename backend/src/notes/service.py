@@ -1,6 +1,8 @@
 import calendar
 from typing import Any
 
+from src.core.error_codes import ErrorCode
+from src.core.exceptions import BadRequestError
 from src.notes.model import Note
 from src.notes.repository import NoteRepository
 from src.notes.schema import NoteCreate, NoteReminderCreate, NoteReminderUpdate, NoteUpdate
@@ -51,19 +53,22 @@ class NoteService:
         return await self.repository.restore(note_id, user_id)
 
     async def set_note_tags(self, note_id: int, user_id: int, tag_ids: list[int]) -> Note | None:
-        return await self.repository.set_tags(note_id, user_id, tag_ids)
+        try:
+            return await self.repository.set_tags(note_id, user_id, tag_ids)
+        except ValueError as e:
+            raise BadRequestError("标签不存在", code=ErrorCode.NOTE_TAG_NOT_FOUND) from e
 
     @staticmethod
     def _validate_reminder_payload(payload: dict[str, Any]) -> dict[str, Any]:
         if "title" in payload and payload["title"] is not None:
             payload["title"] = payload["title"].strip()
             if not payload["title"]:
-                raise ValueError("提醒标题不能为空")
+                raise BadRequestError("提醒标题不能为空", code=ErrorCode.NOTE_REMINDER_TITLE_EMPTY)
 
         if "timezone" in payload and payload["timezone"] is not None:
             payload["timezone"] = payload["timezone"].strip()
             if not payload["timezone"]:
-                raise ValueError("时区不能为空")
+                raise BadRequestError("时区不能为空", code=ErrorCode.NOTE_REMINDER_TIMEZONE_EMPTY)
 
         calendar_type = payload.get("calendar_type")
         month = payload.get("month")
@@ -71,19 +76,19 @@ class NoteService:
         is_leap_month = payload.get("is_leap_month")
 
         if calendar_type not in {"solar", "lunar"}:
-            raise ValueError("calendar_type 必须是 solar 或 lunar")
+            raise BadRequestError("calendar_type 必须是 solar 或 lunar", code=ErrorCode.NOTE_REMINDER_INVALID_DATE)
 
         if month is None or day is None:
-            raise ValueError("month 和 day 必填")
+            raise BadRequestError("month 和 day 必填", code=ErrorCode.NOTE_REMINDER_INVALID_DATE)
 
         if calendar_type == "solar":
             max_day = calendar.monthrange(2024, month)[1]
             if day > max_day:
-                raise ValueError("公历日期无效")
+                raise BadRequestError("公历日期无效", code=ErrorCode.NOTE_REMINDER_INVALID_DATE)
             payload["is_leap_month"] = False
         else:
             if day > 30:
-                raise ValueError("农历日期无效")
+                raise BadRequestError("农历日期无效", code=ErrorCode.NOTE_REMINDER_INVALID_DATE)
             payload["is_leap_month"] = bool(is_leap_month)
 
         return payload
@@ -131,11 +136,11 @@ class NoteService:
             if "title" in payload and payload["title"] is not None:
                 payload["title"] = payload["title"].strip()
                 if not payload["title"]:
-                    raise ValueError("提醒标题不能为空")
+                    raise BadRequestError("提醒标题不能为空", code=ErrorCode.NOTE_REMINDER_TITLE_EMPTY)
             if "timezone" in payload and payload["timezone"] is not None:
                 payload["timezone"] = payload["timezone"].strip()
                 if not payload["timezone"]:
-                    raise ValueError("时区不能为空")
+                    raise BadRequestError("时区不能为空", code=ErrorCode.NOTE_REMINDER_TIMEZONE_EMPTY)
 
         return await self.repository.update_reminder(note_id, reminder_id, user_id, payload)
 

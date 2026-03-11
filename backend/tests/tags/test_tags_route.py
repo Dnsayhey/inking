@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 
 from src.auth.deps import get_current_user
+from src.core.error_codes import ErrorCode
+from src.core.exceptions import BadRequestError
 from src.main import app
 from src.tags.route import get_tag_service
 
@@ -25,7 +27,7 @@ class FakeTagService:
 
     async def create_tag(self, user_id: int, data):
         if data.name == "exists":
-            raise ValueError("标签名称已存在")
+            raise BadRequestError("标签名称已存在", code=ErrorCode.TAG_NAME_EXISTS)
         return {
             "id": 3,
             "name": data.name,
@@ -44,7 +46,7 @@ class FakeTagService:
         if tag_id not in self.tags:
             return None
         if data.name == "exists":
-            raise ValueError("标签名称已存在")
+            raise BadRequestError("标签名称已存在", code=ErrorCode.TAG_NAME_EXISTS)
         updated = self.tags[tag_id].copy()
         if data.name is not None:
             updated["name"] = data.name
@@ -57,6 +59,8 @@ class FakeTagService:
         return tag_id in self.tags
 
     async def merge_tag(self, user_id: int, data):
+        if data.from_tag_id == data.to_tag_id:
+            raise BadRequestError("来源标签和目标标签不能相同", code=ErrorCode.TAG_MERGE_SAME_ID)
         if data.from_tag_id not in self.tags or data.to_tag_id not in self.tags:
             return None
         merged = self.tags[data.to_tag_id].copy()
@@ -76,6 +80,7 @@ def test_tag_routes_create_list_update_delete():
 
     r = client.post("/tags", json={"name": "exists", "color": "#000000"})
     assert r.status_code == 400
+    assert r.json()["code"] == int(ErrorCode.TAG_NAME_EXISTS)
 
     r = client.get("/tags")
     assert r.status_code == 200
@@ -92,6 +97,7 @@ def test_tag_routes_create_list_update_delete():
 
     r = client.patch("/tags/1", json={"name": "exists"})
     assert r.status_code == 400
+    assert r.json()["code"] == int(ErrorCode.TAG_NAME_EXISTS)
 
     r = client.patch("/tags/999", json={"name": "missing"})
     assert r.status_code == 404
@@ -159,7 +165,8 @@ def test_tag_routes_validate_payload():
     assert r.status_code == 422
 
     r = client.post("/tags/merge", json={"from_tag_id": 1, "to_tag_id": 1})
-    assert r.status_code == 422
+    assert r.status_code == 400
+    assert r.json()["code"] == int(ErrorCode.TAG_MERGE_SAME_ID)
 
     app.dependency_overrides.clear()
 
@@ -170,15 +177,21 @@ def test_tag_routes_require_bearer_token():
 
     r = client.get("/tags")
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
+    assert r.headers["www-authenticate"] == "Bearer"
 
     r = client.post("/tags", json={"name": "new", "color": "#abcdef"})
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
 
     r = client.patch("/tags/1", json={"name": "updated"})
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
 
     r = client.delete("/tags/1")
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)
 
     r = client.post("/tags/merge", json={"from_tag_id": 1, "to_tag_id": 2})
     assert r.status_code == 401
+    assert r.json()["code"] == int(ErrorCode.AUTH_INVALID_AUTH)

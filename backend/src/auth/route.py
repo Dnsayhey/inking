@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.deps import get_current_user
@@ -22,10 +22,7 @@ async def register(
     data: RegisterRequest,
     service: AuthService = Depends(get_auth_service),
 ) -> User:
-    try:
-        return await service.register(data.username, data.password)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return await service.register(data.username, data.password)
 
 
 @router.post("/login", response_model=TokenPair)
@@ -33,10 +30,7 @@ async def login(
     data: LoginRequest,
     service: AuthService = Depends(get_auth_service),
 ) -> TokenPair:
-    try:
-        return await service.login(data.username, data.password)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
+    return await service.login(data.username, data.password)
 
 
 @router.post("/refresh", response_model=TokenPair)
@@ -44,10 +38,7 @@ async def refresh(
     data: RefreshRequest,
     service: AuthService = Depends(get_auth_service),
 ) -> TokenPair:
-    try:
-        return await service.refresh(data.refresh_token)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
+    return await service.refresh(data.refresh_token)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

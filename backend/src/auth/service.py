@@ -4,10 +4,12 @@ import jwt
 from sqlalchemy.exc import IntegrityError
 
 from src.auth.jwt import create_access_token, create_refresh_token, decode_token
+from src.auth.model import User
 from src.auth.password import hash_password, verify_password
 from src.auth.repository import RefreshSessionRepository, UserRepository
 from src.auth.schema import TokenPair
-from src.auth.model import User
+from src.core.error_codes import ErrorCode
+from src.core.exceptions import BadRequestError, ForbiddenError, UnauthorizedError
 
 
 class AuthService:
@@ -19,7 +21,7 @@ class AuthService:
     def normalize_username(username: str) -> str:
         normalized = username.strip()
         if not normalized:
-            raise ValueError("用户名不能为空")
+            raise BadRequestError("用户名不能为空", code=ErrorCode.AUTH_USERNAME_EMPTY)
         return normalized
 
     async def register(self, username: str, password: str) -> User:
@@ -30,15 +32,15 @@ class AuthService:
                 password_hash=hash_password(password),
             )
         except IntegrityError as e:
-            raise ValueError("用户名已存在") from e
+            raise BadRequestError("用户名已存在", code=ErrorCode.AUTH_USERNAME_EXISTS) from e
 
     async def login(self, username: str, password: str) -> TokenPair:
         username = self.normalize_username(username)
         user = await self.user_repo.get_by_username(username)
         if not user or not user.is_active:
-            raise ValueError("用户名或密码错误")
+            raise UnauthorizedError("用户名或密码错误", code=ErrorCode.AUTH_INVALID_CREDENTIALS)
         if not verify_password(password, user.password_hash):
-            raise ValueError("用户名或密码错误")
+            raise UnauthorizedError("用户名或密码错误", code=ErrorCode.AUTH_INVALID_CREDENTIALS)
 
         access_token = create_access_token(user.id)
         refresh_token, token_jti, expires_at = create_refresh_token(user.id)
@@ -50,33 +52,33 @@ class AuthService:
         try:
             payload = decode_token(refresh_token)
         except jwt.InvalidTokenError as e:
-            raise ValueError("无效的刷新令牌") from e
+            raise UnauthorizedError("无效的刷新令牌", code=ErrorCode.AUTH_INVALID_REFRESH_TOKEN) from e
 
         if payload.get("type") != "refresh":
-            raise ValueError("无效的刷新令牌")
+            raise UnauthorizedError("无效的刷新令牌", code=ErrorCode.AUTH_INVALID_REFRESH_TOKEN)
 
         token_jti = payload.get("jti")
         sub = payload.get("sub")
         if not token_jti or not sub:
-            raise ValueError("无效的刷新令牌")
+            raise UnauthorizedError("无效的刷新令牌", code=ErrorCode.AUTH_INVALID_REFRESH_TOKEN)
         try:
             user_id = int(sub)
         except (TypeError, ValueError) as e:
-            raise ValueError("无效的刷新令牌") from e
+            raise UnauthorizedError("无效的刷新令牌", code=ErrorCode.AUTH_INVALID_REFRESH_TOKEN) from e
 
         session = await self.refresh_repo.get_active_session(token_jti)
         if not session:
-            raise ValueError("刷新令牌已失效")
+            raise UnauthorizedError("刷新令牌已失效", code=ErrorCode.AUTH_INVALID_REFRESH_TOKEN)
         expires_at = session.expires_at
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         if expires_at < datetime.now(timezone.utc):
             await self.refresh_repo.revoke_session(token_jti)
-            raise ValueError("刷新令牌已过期")
+            raise UnauthorizedError("刷新令牌已过期", code=ErrorCode.AUTH_REFRESH_TOKEN_EXPIRED)
 
         user = await self.user_repo.get_by_id(user_id)
         if not user or not user.is_active:
-            raise ValueError("用户不可用")
+            raise ForbiddenError("用户不可用", code=ErrorCode.AUTH_USER_NOT_AVAILABLE)
 
         await self.refresh_repo.revoke_session(token_jti)
         access_token = create_access_token(user.id)
